@@ -1,5 +1,5 @@
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using Eto.Forms;
 using Eto.Drawing;
 using Rhino;
@@ -7,6 +7,7 @@ using Rhino.Input.Custom;
 using Rhino.DocObjects;
 using Rhino.Geometry;
 using Tanuki.Data;
+using Tanuki.Generators;
 
 namespace Tanuki.UI
 {
@@ -15,20 +16,26 @@ namespace Tanuki.UI
     {
         public static Guid PanelId => typeof(TanukiGridPanel).GUID;
 
-        private ListBox _list;
-        private TextBox _tbName;
-        private Label   _lblDetail;
+        private GridView _grid;
+        private TextBox  _tbName;
+        private Label    _lblInfo;
+
+        // データモデル
+        private class GridRow
+        {
+            public string Name   { get; set; }
+            public string Origin { get; set; }
+            public string Dir    { get; set; }
+            public string Length { get; set; }
+        }
 
         public TanukiGridPanel(uint documentSerialNumber)
         {
-            try
-            {
-            BuildUi();
-            }
+            try { BuildUi(); }
             catch (Exception ex)
             {
-                RhinoApp.WriteLine($"[Tanuki] GridPanel 初期化エラー: {ex.Message}");
-                Content = new Label { Text = $"エラー: {ex.Message}" };
+                RhinoApp.WriteLine($"[Tanuki] GridPanel error: {ex.Message}");
+                Content = new Label { Text = ex.Message };
             }
         }
 
@@ -37,29 +44,51 @@ namespace Tanuki.UI
             var layout = new DynamicLayout { Padding = new Padding(4), Spacing = new Size(0, 3) };
 
             // ── ツールバー ────────────────────────────────────────
-            var toolbar = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 2 };
-            toolbar.Items.Add(SmallBtn("✎ 描く",    "2点で新規作成",       OnDraw));
-            toolbar.Items.Add(SmallBtn("↩ 選択",   "既存の線から登録",     OnPick));
-            toolbar.Items.Add(SmallBtn("✕ 削除",   "選択した通り芯を削除", OnDelete));
-            layout.AddRow(toolbar);
+            var tb = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 2 };
+            tb.Items.Add(Btn("+ 描く",   "2点で新規作成",    OnDraw));
+            tb.Items.Add(Btn("↩ 選択",  "既存の線から登録",  OnPick));
+            tb.Items.Add(Btn("✕",       "選択行を削除",      OnDelete));
+            layout.AddRow(tb);
 
-            // ── リスト ────────────────────────────────────────────
-            _list = new ListBox { Height = 140 };
-            _list.SelectedIndexChanged += (s, e) => UpdateDetail();
-            layout.AddRow(_list);
+            // ── GridView ─────────────────────────────────────────
+            _grid = new GridView { Height = 160, ShowHeader = true };
+            _grid.Columns.Add(new GridColumn
+            {
+                HeaderText = "名前",
+                Width      = 50,
+                DataCell   = new TextBoxCell { Binding = Binding.Property<GridRow, string>(r => r.Name) }
+            });
+            _grid.Columns.Add(new GridColumn
+            {
+                HeaderText = "始点",
+                Width      = 100,
+                DataCell   = new TextBoxCell { Binding = Binding.Property<GridRow, string>(r => r.Origin) }
+            });
+            _grid.Columns.Add(new GridColumn
+            {
+                HeaderText = "方向",
+                Width      = 80,
+                DataCell   = new TextBoxCell { Binding = Binding.Property<GridRow, string>(r => r.Dir) }
+            });
+            _grid.Columns.Add(new GridColumn
+            {
+                HeaderText = "長さ",
+                Width      = 60,
+                DataCell   = new TextBoxCell { Binding = Binding.Property<GridRow, string>(r => r.Length) }
+            });
+            _grid.SelectionChanged += (s, e) => OnSelect();
+            layout.AddRow(_grid);
 
-            // ── 詳細 ──────────────────────────────────────────────
-            _lblDetail = new Label { Text = "", TextColor = Colors.Gray };
-            layout.AddRow(_lblDetail);
+            // ── 詳細/名前変更 ─────────────────────────────────────
+            _lblInfo = new Label { Text = "", TextColor = Colors.Gray };
+            layout.AddRow(_lblInfo);
 
-            // ── 名前変更 ──────────────────────────────────────────
             layout.AddRow(new Panel { Height = 1, BackgroundColor = Colors.DarkGray });
 
             var renameRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
             _tbName = new TextBox { PlaceholderText = "名前を変更", Width = 80 };
-            var btnRename = SmallBtn("変更", "名前を変更", OnRename);
             renameRow.Items.Add(_tbName);
-            renameRow.Items.Add(btnRename);
+            renameRow.Items.Add(Btn("変更", "名前を変更", OnRename));
             layout.AddRow(renameRow);
 
             layout.Add(null);
@@ -105,6 +134,7 @@ namespace Tanuki.UI
                     Length     = gp1.Point().DistanceTo(gp2.Point())
                 });
                 project.Save(doc);
+                GridLineDrawer.SyncToDoc(doc, project.GridLines);
                 Refresh();
             }));
         }
@@ -143,6 +173,7 @@ namespace Tanuki.UI
                     Length     = start.DistanceTo(end)
                 });
                 project.Save(doc);
+                GridLineDrawer.SyncToDoc(doc, project.GridLines);
                 Refresh();
             }));
         }
@@ -151,13 +182,14 @@ namespace Tanuki.UI
         {
             Application.Instance.Invoke(() =>
             {
-                int idx = _list.SelectedIndex;
+                int idx = _grid.SelectedRow;
                 var doc = RhinoDoc.ActiveDoc;
                 if (doc == null || idx < 0) return;
                 var project = TanukiProject.Load(doc);
                 if (idx >= project.GridLines.Count) return;
                 project.GridLines.RemoveAt(idx);
                 project.Save(doc);
+                GridLineDrawer.SyncToDoc(doc, project.GridLines);
                 Refresh();
             });
         }
@@ -166,29 +198,30 @@ namespace Tanuki.UI
         {
             Application.Instance.Invoke(() =>
             {
-                int idx = _list.SelectedIndex;
+                int idx = _grid.SelectedRow;
                 var doc = RhinoDoc.ActiveDoc;
                 if (doc == null || idx < 0 || string.IsNullOrWhiteSpace(_tbName.Text)) return;
                 var project = TanukiProject.Load(doc);
                 if (idx >= project.GridLines.Count) return;
                 project.GridLines[idx].Name = _tbName.Text.Trim();
                 project.Save(doc);
+                GridLineDrawer.SyncToDoc(doc, project.GridLines);
                 Refresh();
             });
         }
 
-        private void UpdateDetail()
+        private void OnSelect()
         {
             Application.Instance.Invoke(() =>
             {
-                int idx = _list.SelectedIndex;
+                int idx = _grid.SelectedRow;
                 var doc = RhinoDoc.ActiveDoc;
-                if (doc == null || idx < 0) { _lblDetail.Text = ""; return; }
+                if (doc == null || idx < 0) { _lblInfo.Text = ""; return; }
                 var project = TanukiProject.Load(doc);
-                if (idx >= project.GridLines.Count) { _lblDetail.Text = ""; return; }
+                if (idx >= project.GridLines.Count) { _lblInfo.Text = ""; return; }
                 var g = project.GridLines[idx];
-                _lblDetail.Text = $"始点 ({g.OriginX:F0}, {g.OriginY:F0})  長 {g.Length:F0}mm";
-                _tbName.Text    = g.Name;
+                _lblInfo.Text = $"始点 ({g.OriginX:F0}, {g.OriginY:F0})  長さ {g.Length:F0} mm";
+                _tbName.Text  = g.Name;
             });
         }
 
@@ -196,16 +229,23 @@ namespace Tanuki.UI
         {
             Application.Instance.Invoke(() =>
             {
-                _list.Items.Clear();
                 var doc = RhinoDoc.ActiveDoc;
-                if (doc == null) return;
-                var project = TanukiProject.Load(doc);
-                foreach (var g in project.GridLines)
-                    _list.Items.Add($"{g.Name}   ({g.OriginX:F0}, {g.OriginY:F0})  dir({g.DirectionX:F2},{g.DirectionY:F2})");
+                var project = doc != null ? TanukiProject.Load(doc) : null;
+                var rows = new List<GridRow>();
+                if (project != null)
+                    foreach (var g in project.GridLines)
+                        rows.Add(new GridRow
+                        {
+                            Name   = g.Name,
+                            Origin = $"({g.OriginX:F0},{g.OriginY:F0})",
+                            Dir    = $"({g.DirectionX:F2},{g.DirectionY:F2})",
+                            Length = $"{g.Length:F0}"
+                        });
+                _grid.DataStore = rows;
             });
         }
 
-        private Button SmallBtn(string label, string tip, Action action)
+        private Button Btn(string label, string tip, Action action)
         {
             var b = new Button { Text = label, Height = 26, ToolTip = tip };
             b.Click += (s, e) => action();

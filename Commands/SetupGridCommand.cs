@@ -4,6 +4,7 @@ using Rhino.DocObjects;
 using Rhino.Geometry;
 using Rhino.Input.Custom;
 using Tanuki.Data;
+using Tanuki.Generators;
 
 namespace Tanuki.Commands
 {
@@ -83,6 +84,7 @@ namespace Tanuki.Commands
             });
 
             project.Save(doc);
+            GridLineDrawer.SyncToDoc(doc, project.GridLines);
             RhinoApp.WriteLine($"通り芯 '{gn.StringResult()}' を登録しました");
             return Result.Success;
         }
@@ -123,6 +125,7 @@ namespace Tanuki.Commands
             });
 
             project.Save(doc);
+            GridLineDrawer.SyncToDoc(doc, project.GridLines);
             RhinoApp.WriteLine($"通り芯 '{name}' を追加しました");
             return Result.Success;
         }

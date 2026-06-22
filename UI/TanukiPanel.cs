@@ -118,7 +118,9 @@ namespace Tanuki.UI
         private void OpenPanel(Guid panelId)
         {
             RhinoApp.InvokeOnUiThread(new Action(() =>
-                Rhino.UI.Panels.OpenPanel(panelId)));
+            {
+                Rhino.UI.Panels.OpenPanel(panelId);
+            }));
         }
 
         // ── Actions ──
