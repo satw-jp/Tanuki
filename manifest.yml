@@ -1,0 +1,12 @@
+name: Tanuki
+version: 1.0.0
+authors:
+  - satw-jp
+description: Architectural drawing generator for Rhino — floor plans, sections, elevations with live update.
+url: https://github.com/satw-jp/Tanuki
+keywords:
+  - architecture
+  - floor plan
+  - section
+  - elevation
+  - drawing

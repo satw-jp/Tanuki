@@ -1,0 +1,51 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '7.0.x'
+
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Download Yak
+        run: |
+          curl -L -o yak.zip "https://files.mcneel.com/yak/tool/latest/mac/yak.zip"
+          unzip yak.zip -d yak_bin
+
+      - name: Package
+        run: |
+          mkdir dist
+          cp bin/Release/net7.0/Tanuki.rhp dist/
+          cp manifest.yml dist/
+          cd dist && ../../yak_bin/yak build
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.yak
+          body: |
+            ## Install
+            1. Download the `.yak` file
+            2. Drag & drop onto Rhino viewport
+            3. Restart Rhino
+
+            ## Commands
+            - `TanukiSetupGrid` — set up grid lines
+            - `TanukiSetupLevel` — set up floor levels
+            - `TanukiFloorPlan` — generate floor plan
+            - `TanukiRCP` — reflected ceiling plan
+            - `TanukiSection` — section (any angle)
+            - `TanukiElevation` — elevation (any angle)
+            - `TanukiUpdateAll` — regenerate all views
