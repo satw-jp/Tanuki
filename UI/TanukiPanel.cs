@@ -19,53 +19,73 @@ namespace Tanuki.UI
 
         public TanukiPanel(uint documentSerialNumber)
         {
-            var layout = new DynamicLayout { Padding = new Padding(6), Spacing = new Size(2, 3) };
+            var layout = new DynamicLayout { Padding = new Padding(4), Spacing = new Size(0, 2) };
 
-            // ── Setup ──
-            layout.AddRow(SectionLabel("Setup"));
-            layout.AddRow(
-                Btn("Grid Lines",  () => Run("TanukiSetupGrid")),
-                Btn("Levels",      () => Run("TanukiSetupLevel"))
-            );
+            // ── Setup toolbar ──────────────────────────────────────
+            var setupRow = new StackLayout
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 2
+            };
+            setupRow.Items.Add(IconBtn("⊕",  "通り芯を設定",   () => Run("TanukiSetupGrid")));
+            setupRow.Items.Add(IconBtn("⊟",  "レベルを設定",   () => Run("TanukiSetupLevel")));
+            layout.AddRow(setupRow);
 
-            // ── 図面生成 ──
-            layout.AddRow(SectionLabel("Generate"));
-            layout.AddRow(
-                Btn("Floor Plan",  () => Run("TanukiFloorPlan")),
-                Btn("RCP",         () => Run("TanukiRCP"))
-            );
-            layout.AddRow(
-                Btn("Section",     () => Run("TanukiSection")),
-                Btn("Elevation",   () => Run("TanukiElevation"))
-            );
-            layout.AddRow(Btn("↻ Update All", () => Run("TanukiUpdateAll")));
-            layout.AddRow(
-                Btn("Place View",  () => Run("TanukiPlaceView")),
-                Btn("Properties",  () => Run("TanukiProperties"))
-            );
+            // ── Generate toolbar ───────────────────────────────────
+            var genRow = new StackLayout
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 2
+            };
+            genRow.Items.Add(IconBtn("🗺",  "平面図を生成",           () => Run("TanukiFloorPlan")));
+            genRow.Items.Add(IconBtn("💡",  "天井伏図を生成 (RCP)",   () => Run("TanukiRCP")));
+            genRow.Items.Add(IconBtn("✂",   "断面図を生成",           () => Run("TanukiSection")));
+            genRow.Items.Add(IconBtn("🏢",  "立面図を生成",           () => Run("TanukiElevation")));
+            genRow.Items.Add(IconBtn("🔄",  "全図面を更新",           () => Run("TanukiUpdateAll")));
+            layout.AddRow(genRow);
 
-            // ── シート ──
-            layout.AddRow(SectionLabel("Sheet"));
-            layout.AddRow(
-                Btn("New Sheet",   () => Run("TanukiSheet")),
-                Btn("Print Range", () => Run("TanukiPrint"))
-            );
+            // ── View / Sheet toolbar ───────────────────────────────
+            var viewRow = new StackLayout
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 2
+            };
+            viewRow.Items.Add(IconBtn("📌",  "図面の配置位置を変更",   () => Run("TanukiPlaceView")));
+            viewRow.Items.Add(IconBtn("ℹ",   "Tanukiプロパティを表示", () => Run("TanukiProperties")));
+            viewRow.Items.Add(IconBtn("📋",  "新しいシート（Layout）を作成", () => Run("TanukiSheet")));
+            viewRow.Items.Add(IconBtn("🖨",  "印刷範囲を可視化",       () => Run("TanukiPrint")));
+            layout.AddRow(viewRow);
 
-            // ── Viewリスト ──
-            layout.AddRow(SectionLabel("Views"));
-            _viewList = new ListBox { Height = 100 };
+            // ── 区切り ─────────────────────────────────────────────
+            layout.AddRow(new Panel { Height = 1, BackgroundColor = Colors.DarkGray });
+
+            // ── 図面リスト ─────────────────────────────────────────
+            _viewList = new ListBox { Height = 120 };
             layout.AddRow(_viewList);
-            layout.AddRow(
-                Btn("↻ Selected", RefreshSelected),
-                Btn("✕ Delete",   DeleteSelected)
-            );
 
-            // ── Layer Mode ──
-            layout.AddRow(SectionLabel("Layer Mode"));
-            _rbLineType = new RadioButton { Text = "Line type",      Checked = true };
-            _rbOriginal = new RadioButton(_rbLineType) { Text = "Original layer" };
+            var listRow = new StackLayout
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 2
+            };
+            listRow.Items.Add(IconBtn("🔃",  "選択した図面を再生成",   RefreshSelected));
+            listRow.Items.Add(IconBtn("🗑",   "選択した図面を削除",     DeleteSelected));
+            layout.AddRow(listRow);
+
+            // ── 区切り ─────────────────────────────────────────────
+            layout.AddRow(new Panel { Height = 1, BackgroundColor = Colors.DarkGray });
+
+            // ── レイヤーモード ─────────────────────────────────────
+            _rbLineType = new RadioButton { Text = "≡ 線種", Checked = true };
+            _rbOriginal = new RadioButton(_rbLineType) { Text = "≡ 元レイヤー" };
             _rbLineType.CheckedChanged += (s, e) => SaveLayerMode();
-            layout.AddRow(_rbLineType, _rbOriginal);
+            var modeRow = new StackLayout
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                Items = { _rbLineType, _rbOriginal }
+            };
+            layout.AddRow(modeRow);
 
             layout.Add(null);
             Content = layout;
@@ -76,27 +96,26 @@ namespace Tanuki.UI
 
         // ── UI helpers ──
 
-        private Label SectionLabel(string text) => new Label
+        private Button IconBtn(string icon, string tip, Action action)
         {
-            Text = text,
-            Font = new Font(SystemFont.Label, 9),
-            TextColor = Colors.Gray
-        };
-
-        private Button Btn(string label, Action action)
-        {
-            var b = new Button { Text = label, Height = 26 };
+            var b = new Button
+            {
+                Text    = icon,
+                Width   = 30,
+                Height  = 30,
+                ToolTip = tip
+            };
             b.Click += (s, e) => action();
             return b;
         }
-
-        // ── Actions ──
 
         private void Run(string command)
         {
             RhinoApp.InvokeOnUiThread(new Action(() =>
                 RhinoApp.RunScript(command, false)));
         }
+
+        // ── Actions ──
 
         private void RefreshSelected()
         {
@@ -132,7 +151,12 @@ namespace Tanuki.UI
                 if (doc == null) return;
                 var project = TanukiProject.Load(doc);
                 foreach (var v in project.Views)
-                    _viewList.Items.Add($"{v.Type}  {v.Name}");
+                {
+                    string icon = v.Type == ViewType.FloorPlan ? "🗺" :
+                                  v.Type == ViewType.RCP       ? "💡" :
+                                  v.Type == ViewType.Section   ? "✂"  : "🏢";
+                    _viewList.Items.Add($"{icon}  {v.Name}");
+                }
             });
         }
 

@@ -1,5 +1,6 @@
 using Rhino;
 using Rhino.Commands;
+using Rhino.DocObjects;
 using Rhino.Geometry;
 using Rhino.Input.Custom;
 using Tanuki.Data;
@@ -18,8 +19,9 @@ namespace Tanuki.Commands
 
             var go = new GetOption();
             go.SetCommandPrompt("通り芯の操作を選択");
-            int addIdx = go.AddOption("追加");
-            int listIdx = go.AddOption("一覧");
+            int drawIdx  = go.AddOption("描く");
+            int pickIdx  = go.AddOption("既存線を選択");
+            int listIdx  = go.AddOption("一覧");
             int clearIdx = go.AddOption("全削除");
             go.Get();
             if (go.CommandResult() != Result.Success) return go.CommandResult();
@@ -40,7 +42,55 @@ namespace Tanuki.Commands
                 return Result.Success;
             }
 
-            // 追加
+            if (go.Option().Index == pickIdx)
+                return AddFromExistingLine(doc, project);
+
+            // 描く（2点入力）
+            return AddByDrawing(doc, project);
+        }
+
+        // ── 既存の線から登録 ─────────────────────────────────────────────────
+
+        private Result AddFromExistingLine(RhinoDoc doc, TanukiProject project)
+        {
+            var gobj = new GetObject();
+            gobj.SetCommandPrompt("通り芯にする線を選択");
+            gobj.GeometryFilter = ObjectType.Curve;
+            gobj.Get();
+            if (gobj.CommandResult() != Result.Success) return gobj.CommandResult();
+
+            var curve = gobj.Object(0).Curve();
+            if (curve == null) { RhinoApp.WriteLine("線を選択してください"); return Result.Failure; }
+
+            var start = curve.PointAtStart;
+            var end   = curve.PointAtEnd;
+            var dir   = end - start;
+            dir.Unitize();
+
+            var gn = new GetString();
+            gn.SetCommandPrompt("通り芯の名前 (例: A, 1)");
+            gn.Get();
+            if (gn.CommandResult() != Result.Success) return gn.CommandResult();
+
+            project.GridLines.Add(new GridLine
+            {
+                Name       = gn.StringResult(),
+                OriginX    = start.X,
+                OriginY    = start.Y,
+                DirectionX = dir.X,
+                DirectionY = dir.Y,
+                Length     = start.DistanceTo(end)
+            });
+
+            project.Save(doc);
+            RhinoApp.WriteLine($"通り芯 '{gn.StringResult()}' を登録しました");
+            return Result.Success;
+        }
+
+        // ── 2点を指定して新規作成 ────────────────────────────────────────────
+
+        private Result AddByDrawing(RhinoDoc doc, TanukiProject project)
+        {
             var gn = new GetString();
             gn.SetCommandPrompt("通り芯の名前 (例: A, 1)");
             gn.Get();
@@ -53,7 +103,9 @@ namespace Tanuki.Commands
             if (gp1.CommandResult() != Result.Success) return gp1.CommandResult();
 
             var gp2 = new GetPoint();
-            gp2.SetCommandPrompt("通り芯の方向（終点）");
+            gp2.SetCommandPrompt("通り芯の終点");
+            gp2.SetBasePoint(gp1.Point(), false);
+            gp2.DrawLineFromPoint(gp1.Point(), true);
             gp2.Get();
             if (gp2.CommandResult() != Result.Success) return gp2.CommandResult();
 
@@ -67,7 +119,7 @@ namespace Tanuki.Commands
                 OriginY    = gp1.Point().Y,
                 DirectionX = dir.X,
                 DirectionY = dir.Y,
-                Length     = gp1.Point().DistanceTo(gp2.Point()) * 2
+                Length     = gp1.Point().DistanceTo(gp2.Point())
             });
 
             project.Save(doc);
