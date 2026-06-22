@@ -19,10 +19,22 @@ namespace Tanuki
 
         private void OnRhinoInitialized(object sender, System.EventArgs e)
         {
-            Rhino.UI.Panels.RegisterPanel(this, typeof(TanukiPanel),      "Tanuki",         (System.Drawing.Icon)null);
-            Rhino.UI.Panels.RegisterPanel(this, typeof(TanukiGridPanel),  "Tanuki: 通り芯", (System.Drawing.Icon)null);
-            Rhino.UI.Panels.RegisterPanel(this, typeof(TanukiLevelPanel), "Tanuki: レベル", (System.Drawing.Icon)null);
+            TryRegister(typeof(TanukiPanel),      "Tanuki");
+            TryRegister(typeof(TanukiGridPanel),  "Tanuki: 通り芯");
+            TryRegister(typeof(TanukiLevelPanel), "Tanuki: レベル");
             RhinoDoc.ReplaceRhinoObject += OnObjectReplaced;
+        }
+
+        private void TryRegister(System.Type panelType, string name)
+        {
+            try
+            {
+                Rhino.UI.Panels.RegisterPanel(this, panelType, name, (System.Drawing.Icon)null);
+            }
+            catch (System.Exception ex)
+            {
+                RhinoApp.WriteLine($"[Tanuki] パネル登録失敗 {name}: {ex.Message}");
+            }
         }
 
         // マーカー線が移動されたとき対応図面を自動再生成

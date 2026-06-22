@@ -15,11 +15,24 @@ namespace Tanuki.UI
     {
         public static Guid PanelId => typeof(TanukiGridPanel).GUID;
 
-        private readonly ListBox   _list;
-        private readonly TextBox   _tbName;
-        private readonly Label     _lblDetail;
+        private ListBox _list;
+        private TextBox _tbName;
+        private Label   _lblDetail;
 
         public TanukiGridPanel(uint documentSerialNumber)
+        {
+            try
+            {
+            BuildUi();
+            }
+            catch (Exception ex)
+            {
+                RhinoApp.WriteLine($"[Tanuki] GridPanel 初期化エラー: {ex.Message}");
+                Content = new Label { Text = $"エラー: {ex.Message}" };
+            }
+        }
+
+        private void BuildUi()
         {
             var layout = new DynamicLayout { Padding = new Padding(4), Spacing = new Size(0, 3) };
 
