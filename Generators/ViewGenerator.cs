@@ -40,16 +40,18 @@ namespace Tanuki.Generators
             bool reflected = view.Type == ViewType.RCP;
             var curves = LineClassifier.ClassifyFloorPlan(doc, view.CutHeight, reflected);
 
-            // 通り芯を追加
-            foreach (var gl in project.GridLines)
-                curves.Add(new ClassifiedCurve
-                {
-                    Curve = gl.ToLine().ToNurbsCurve(),
-                    LineType = LineType.Visible,
-                    SourceLayerIndex = 0
-                });
+            // 通り芯バブル記号を追加
+            if (project.GridLines.Count > 0)
+            {
+                var gridCurves = GridSymbolGenerator.GenerateSymbols(doc, project.GridLines);
+                curves.AddRange(gridCurves);
+            }
 
-            DrawingPlacer.Place(doc, view.Name, curves, offset, project.LayerMode, replace);
+            int layerIdx = DrawingPlacer.Place(doc, view.Name, curves, offset, project.LayerMode, replace);
+
+            // 通り芯テキストラベル
+            if (project.GridLines.Count > 0)
+                GridSymbolGenerator.PlaceGridText(doc, project.GridLines, layerIdx, offset);
         }
 
         // ---- Section / Elevation ----
@@ -61,6 +63,7 @@ namespace Tanuki.Generators
             var curves     = LineClassifier.Classify(doc, cutPlane, viewDir);
 
             DrawingPlacer.Place(doc, view.Name, curves, offset, project.LayerMode, replace);
+
         }
 
         // ---- Layout Offset ----

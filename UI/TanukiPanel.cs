@@ -39,6 +39,17 @@ namespace Tanuki.UI
                 Btn("Elevation",   () => Run("TanukiElevation"))
             );
             layout.AddRow(Btn("↻ Update All", () => Run("TanukiUpdateAll")));
+            layout.AddRow(
+                Btn("Place View",  () => Run("TanukiPlaceView")),
+                Btn("Properties",  () => Run("TanukiProperties"))
+            );
+
+            // ── シート ──
+            layout.AddRow(SectionLabel("Sheet"));
+            layout.AddRow(
+                Btn("New Sheet",   () => Run("TanukiSheet")),
+                Btn("Print Range", () => Run("TanukiPrint"))
+            );
 
             // ── Viewリスト ──
             layout.AddRow(SectionLabel("Views"));

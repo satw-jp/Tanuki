@@ -16,7 +16,7 @@ namespace Tanuki.Generators
         // Tanuki::FloorPlan_1FL::断面線
         // Tanuki::FloorPlan_1FL::見え掛かり
 
-        public static void Place(
+        public static int Place(
             RhinoDoc doc,
             string viewName,
             List<ClassifiedCurve> curves,
@@ -24,7 +24,7 @@ namespace Tanuki.Generators
             LayerMode mode,
             bool replaceExisting = true)
         {
-            if (curves.Count == 0) return;
+            if (curves.Count == 0) return -1;
 
             if (replaceExisting) DeleteViewLayers(doc, viewName);
 
@@ -73,6 +73,7 @@ namespace Tanuki.Generators
 
             doc.Views.Redraw();
             RhinoApp.WriteLine($"[Tanuki] {viewName}: {curves.Count}本を配置しました");
+            return visIdx;
         }
 
         public static void DeleteViewLayers(RhinoDoc doc, string viewName)
