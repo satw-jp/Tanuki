@@ -19,7 +19,9 @@ namespace Tanuki
 
         private void OnRhinoInitialized(object sender, System.EventArgs e)
         {
-            Rhino.UI.Panels.RegisterPanel(this, typeof(TanukiPanel), "Tanuki", (System.Drawing.Icon)null);
+            Rhino.UI.Panels.RegisterPanel(this, typeof(TanukiPanel),      "Tanuki",         (System.Drawing.Icon)null);
+            Rhino.UI.Panels.RegisterPanel(this, typeof(TanukiGridPanel),  "Tanuki: 通り芯", (System.Drawing.Icon)null);
+            Rhino.UI.Panels.RegisterPanel(this, typeof(TanukiLevelPanel), "Tanuki: レベル", (System.Drawing.Icon)null);
             RhinoDoc.ReplaceRhinoObject += OnObjectReplaced;
         }
 

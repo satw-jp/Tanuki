@@ -27,8 +27,8 @@ namespace Tanuki.UI
                 Orientation = Orientation.Horizontal,
                 Spacing = 2
             };
-            setupRow.Items.Add(IconBtn("⊕",  "通り芯を設定",   () => Run("TanukiSetupGrid")));
-            setupRow.Items.Add(IconBtn("⊟",  "レベルを設定",   () => Run("TanukiSetupLevel")));
+            setupRow.Items.Add(IconBtn("⊕",  "通り芯パネルを開く",   () => OpenPanel(TanukiGridPanel.PanelId)));
+            setupRow.Items.Add(IconBtn("⊟",  "レベルパネルを開く",   () => OpenPanel(TanukiLevelPanel.PanelId)));
             layout.AddRow(setupRow);
 
             // ── Generate toolbar ───────────────────────────────────
@@ -113,6 +113,12 @@ namespace Tanuki.UI
         {
             RhinoApp.InvokeOnUiThread(new Action(() =>
                 RhinoApp.RunScript(command, false)));
+        }
+
+        private void OpenPanel(Guid panelId)
+        {
+            RhinoApp.InvokeOnUiThread(new Action(() =>
+                Rhino.UI.Panels.OpenPanel(panelId)));
         }
 
         // ── Actions ──
