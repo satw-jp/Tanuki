@@ -1,15 +1,19 @@
+using System;
 using Rhino.Geometry;
 
 namespace Tanuki.Data
 {
     public class GridLine
     {
-        public string Name      { get; set; } = "";   // "A", "B", "1", "2" etc.
+        public string Name      { get; set; } = "";
         public double OriginX   { get; set; }
         public double OriginY   { get; set; }
-        public double DirectionX { get; set; } = 1;  // 方向ベクトル (単位ベクトル)
+        public double DirectionX { get; set; } = 1;
         public double DirectionY { get; set; } = 0;
-        public double Length    { get; set; } = 20000; // mm
+        public double Length    { get; set; } = 20000;
+
+        // Rhinoオブジェクト追跡用（シリアライズして保存）
+        public Guid LineObjectId { get; set; } = Guid.Empty;
 
         public Line ToLine()
         {

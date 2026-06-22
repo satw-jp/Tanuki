@@ -7,37 +7,73 @@ using Tanuki.Data;
 namespace Tanuki.Generators
 {
     /// <summary>
-    /// 通り芯をRhinoのモデル空間に可視化する（Tanuki::通り芯レイヤー）
+    /// 通り芯をRhinoのモデル空間に可視化する。
+    /// 「線」レイヤーはオブジェクトIDを保持して移動追従。
+    /// 「記号」レイヤーはバブル＋テキストで都度再生成。
     /// </summary>
     public static class GridLineDrawer
     {
-        private const string LayerPath  = "Tanuki::通り芯";
+        private const string RootPath    = "Tanuki";
+        private const string GridPath    = "Tanuki::通り芯";
+        private const string LinePath    = "Tanuki::通り芯::線";
+        private const string SymbolPath  = "Tanuki::通り芯::記号";
+
         private const double BubbleR    = 400;
         private const double TextHeight = 360;
 
-        public static void SyncToDoc(RhinoDoc doc, List<GridLine> gridLines)
+        // ── 全同期（初回・パネルから追加時） ─────────────────────────────
+
+        public static void SyncAll(RhinoDoc doc, List<GridLine> gridLines)
         {
-            // 既存オブジェクトをすべて削除
-            int layerIdx = EnsureLayer(doc);
-            var existing = doc.Objects.FindByLayer(doc.Layers[layerIdx]);
+            EnsureLayers(doc);
+            SyncLines(doc, gridLines);   // 線を描いてIDを保存
+            SyncSymbols(doc, gridLines); // バブル＋テキスト
+        }
+
+        // ── 線のみ同期（IDを GridLine.LineObjectId に保存） ─────────────
+
+        public static void SyncLines(RhinoDoc doc, List<GridLine> gridLines)
+        {
+            int lineIdx = GetLayer(doc, LinePath);
+
+            // 既存線をすべて削除（IDが残らないよう）
+            var existing = doc.Objects.FindByLayer(doc.Layers[lineIdx]);
             if (existing != null)
                 foreach (var o in existing) doc.Objects.Delete(o, true);
 
-            var attr = new ObjectAttributes { LayerIndex = layerIdx };
+            var attr = new ObjectAttributes
+            {
+                LayerIndex  = lineIdx,
+                ColorSource = ObjectColorSource.ColorFromLayer
+            };
+
+            foreach (var gl in gridLines)
+            {
+                var id = doc.Objects.AddLine(gl.ToLine(), attr);
+                gl.LineObjectId = id;
+            }
+        }
+
+        // ── シンボルのみ再生成（線は触らない） ───────────────────────────
+
+        public static void SyncSymbols(RhinoDoc doc, List<GridLine> gridLines)
+        {
+            int symIdx = GetLayer(doc, SymbolPath);
+
+            // 既存シンボルを削除
+            var existing = doc.Objects.FindByLayer(doc.Layers[symIdx]);
+            if (existing != null)
+                foreach (var o in existing) doc.Objects.Delete(o, true);
+
+            var attr = new ObjectAttributes { LayerIndex = symIdx };
 
             foreach (var gl in gridLines)
             {
                 var line = gl.ToLine();
-
-                // 線本体
-                doc.Objects.AddLine(line, attr);
-
-                // 両端のバブル＋テキスト
                 foreach (var pt in new[] { line.From, line.To })
                 {
                     var plane  = new Plane(pt, Vector3d.ZAxis);
-                    var circle = new Circle(plane, BubbleR);
-                    doc.Objects.AddCircle(circle, attr);
+                    doc.Objects.AddCircle(new Circle(plane, BubbleR), attr);
 
                     var te = new TextEntity
                     {
@@ -53,26 +89,71 @@ namespace Tanuki.Generators
             doc.Views.Redraw();
         }
 
-        private static int EnsureLayer(RhinoDoc doc)
+        // ── 移動追従：特定グリッド線のデータを新ジオメトリから更新 ────────
+
+        public static bool TryUpdateFromObject(
+            RhinoDoc doc,
+            System.Guid oldId,
+            System.Guid newId,
+            Curve newCurve,
+            List<GridLine> gridLines)
         {
-            // 親レイヤー Tanuki
-            int rootIdx = doc.Layers.FindByFullPath("Tanuki", RhinoMath.UnsetIntIndex);
-            if (rootIdx == RhinoMath.UnsetIntIndex)
+            foreach (var gl in gridLines)
             {
-                var root = new Layer { Name = "Tanuki", Color = System.Drawing.Color.DimGray };
-                rootIdx = doc.Layers.Add(root);
+                if (gl.LineObjectId != oldId) continue;
+
+                var start = newCurve.PointAtStart;
+                var end   = newCurve.PointAtEnd;
+                var dir   = end - start;
+                dir.Unitize();
+
+                gl.OriginX     = start.X;
+                gl.OriginY     = start.Y;
+                gl.DirectionX  = dir.X;
+                gl.DirectionY  = dir.Y;
+                gl.Length      = start.DistanceTo(end);
+                gl.LineObjectId = newId;
+                return true;
             }
+            return false;
+        }
 
-            // 子レイヤー 通り芯
-            int idx = doc.Layers.FindByFullPath(LayerPath, RhinoMath.UnsetIntIndex);
-            if (idx != RhinoMath.UnsetIntIndex) return idx;
+        // ── レイヤー管理 ─────────────────────────────────────────────────
 
-            var layer = new Layer
+        private static void EnsureLayers(RhinoDoc doc)
+        {
+            GetOrCreateLayer(doc, RootPath,   null,     System.Drawing.Color.DimGray);
+            GetOrCreateLayer(doc, GridPath,   RootPath, System.Drawing.Color.FromArgb(0, 128, 255));
+            GetOrCreateLayer(doc, LinePath,   GridPath, System.Drawing.Color.FromArgb(0, 128, 255));
+            GetOrCreateLayer(doc, SymbolPath, GridPath, System.Drawing.Color.FromArgb(0, 128, 255));
+        }
+
+        private static int GetLayer(RhinoDoc doc, string path)
+        {
+            int idx = doc.Layers.FindByFullPath(path, RhinoMath.UnsetIntIndex);
+            if (idx == RhinoMath.UnsetIntIndex)
             {
-                Name           = "通り芯",
-                Color          = System.Drawing.Color.FromArgb(0, 128, 255),
-                ParentLayerId  = doc.Layers[rootIdx].Id
-            };
+                EnsureLayers(doc);
+                idx = doc.Layers.FindByFullPath(path, RhinoMath.UnsetIntIndex);
+            }
+            return idx;
+        }
+
+        private static int GetOrCreateLayer(
+            RhinoDoc doc, string fullPath, string parentFullPath, System.Drawing.Color color)
+        {
+            int existing = doc.Layers.FindByFullPath(fullPath, RhinoMath.UnsetIntIndex);
+            if (existing != RhinoMath.UnsetIntIndex) return existing;
+
+            string name = fullPath.Contains("::") ? fullPath.Substring(fullPath.LastIndexOf("::") + 2) : fullPath;
+            var layer = new Layer { Name = name, Color = color };
+
+            if (parentFullPath != null)
+            {
+                int parentIdx = doc.Layers.FindByFullPath(parentFullPath, RhinoMath.UnsetIntIndex);
+                if (parentIdx != RhinoMath.UnsetIntIndex)
+                    layer.ParentLayerId = doc.Layers[parentIdx].Id;
+            }
             return doc.Layers.Add(layer);
         }
     }

@@ -134,7 +134,7 @@ namespace Tanuki.UI
                     Length     = gp1.Point().DistanceTo(gp2.Point())
                 });
                 project.Save(doc);
-                GridLineDrawer.SyncToDoc(doc, project.GridLines);
+                GridLineDrawer.SyncAll(doc, project.GridLines);
                 Refresh();
             }));
         }
@@ -173,7 +173,7 @@ namespace Tanuki.UI
                     Length     = start.DistanceTo(end)
                 });
                 project.Save(doc);
-                GridLineDrawer.SyncToDoc(doc, project.GridLines);
+                GridLineDrawer.SyncAll(doc, project.GridLines);
                 Refresh();
             }));
         }
@@ -189,7 +189,7 @@ namespace Tanuki.UI
                 if (idx >= project.GridLines.Count) return;
                 project.GridLines.RemoveAt(idx);
                 project.Save(doc);
-                GridLineDrawer.SyncToDoc(doc, project.GridLines);
+                GridLineDrawer.SyncAll(doc, project.GridLines);
                 Refresh();
             });
         }
@@ -205,7 +205,7 @@ namespace Tanuki.UI
                 if (idx >= project.GridLines.Count) return;
                 project.GridLines[idx].Name = _tbName.Text.Trim();
                 project.Save(doc);
-                GridLineDrawer.SyncToDoc(doc, project.GridLines);
+                GridLineDrawer.SyncAll(doc, project.GridLines);
                 Refresh();
             });
         }

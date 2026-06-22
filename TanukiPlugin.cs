@@ -37,28 +37,47 @@ namespace Tanuki
             }
         }
 
-        // マーカー線が移動されたとき対応図面を自動再生成
+        // オブジェクトが置き換えられたとき：断面マーカーまたは通り芯を追跡
         private void OnObjectReplaced(object sender, Rhino.DocObjects.RhinoReplaceObjectEventArgs args)
         {
             var doc     = args.Document;
             var project = TanukiProject.Load(doc);
+            var oldId   = args.OldRhinoObject.Id;
+            var newId   = args.NewRhinoObject.Id;
 
+            // ── 断面/立面マーカーの移動追従 ──
             foreach (var view in project.Views)
             {
                 if (view.MarkerObjectId == System.Guid.Empty) continue;
-                if (view.MarkerObjectId != args.OldRhinoObject.Id) continue;
+                if (view.MarkerObjectId != oldId) continue;
 
                 if (args.NewRhinoObject.Geometry is Rhino.Geometry.Curve curve)
                 {
-                    view.CutStartX = curve.PointAtStart.X;
-                    view.CutStartY = curve.PointAtStart.Y;
-                    view.CutEndX   = curve.PointAtEnd.X;
-                    view.CutEndY   = curve.PointAtEnd.Y;
+                    view.CutStartX      = curve.PointAtStart.X;
+                    view.CutStartY      = curve.PointAtStart.Y;
+                    view.CutEndX        = curve.PointAtEnd.X;
+                    view.CutEndY        = curve.PointAtEnd.Y;
+                    view.MarkerObjectId = newId;
+                    project.Save(doc);
+                    var v = view;
+                    RhinoApp.InvokeOnUiThread(new System.Action(() =>
+                        ViewGenerator.Generate(doc, v, project)));
+                }
+                return;
+            }
+
+            // ── 通り芯の移動追従 ──
+            if (args.NewRhinoObject.Geometry is Rhino.Geometry.Curve gridCurve)
+            {
+                bool updated = Tanuki.Generators.GridLineDrawer.TryUpdateFromObject(
+                    doc, oldId, newId, gridCurve, project.GridLines);
+
+                if (updated)
+                {
                     project.Save(doc);
                     RhinoApp.InvokeOnUiThread(new System.Action(() =>
-                        ViewGenerator.Generate(doc, view, project)));
+                        Tanuki.Generators.GridLineDrawer.SyncSymbols(doc, project.GridLines)));
                 }
-                break;
             }
         }
 

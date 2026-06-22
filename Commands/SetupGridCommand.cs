@@ -84,7 +84,7 @@ namespace Tanuki.Commands
             });
 
             project.Save(doc);
-            GridLineDrawer.SyncToDoc(doc, project.GridLines);
+            GridLineDrawer.SyncAll(doc, project.GridLines);
             RhinoApp.WriteLine($"通り芯 '{gn.StringResult()}' を登録しました");
             return Result.Success;
         }
@@ -125,7 +125,7 @@ namespace Tanuki.Commands
             });
 
             project.Save(doc);
-            GridLineDrawer.SyncToDoc(doc, project.GridLines);
+            GridLineDrawer.SyncAll(doc, project.GridLines);
             RhinoApp.WriteLine($"通り芯 '{name}' を追加しました");
             return Result.Success;
         }

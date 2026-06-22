@@ -133,7 +133,7 @@ namespace Tanuki.Commands
 
             // モデル上にマーカー線を追加
             var markerLine = new Line(gp1.Point(), gp2.Point());
-            var markerId = AddMarker(doc, markerLine, name, System.Drawing.Color.Magenta);
+            var markerId = AddMarker(doc, markerLine, name, System.Drawing.Color.Magenta, viewRight);
             view.MarkerObjectId = markerId;
 
             project.Views.RemoveAll(v => v.Name == name);
@@ -144,17 +144,70 @@ namespace Tanuki.Commands
             return Result.Success;
         }
 
-        private Guid AddMarker(RhinoDoc doc, Line line, string name, System.Drawing.Color color)
+        private Guid AddMarker(RhinoDoc doc, Line line, string name, System.Drawing.Color color, bool viewRight = true)
         {
-            int markerLayerIdx = GetOrCreateMarkerLayer(doc);
-            var attr = new Rhino.DocObjects.ObjectAttributes
+            int layerIdx = GetOrCreateMarkerLayer(doc);
+            var lineAttr = new Rhino.DocObjects.ObjectAttributes
             {
-                LayerIndex = markerLayerIdx,
+                LayerIndex  = layerIdx,
                 ColorSource = Rhino.DocObjects.ObjectColorSource.ColorFromObject,
                 ObjectColor = color,
-                Name = $"[Tanuki Marker] {name}"
+                Name        = $"[Tanuki Marker] {name}"
             };
-            return doc.Objects.AddLine(line, attr);
+            var id = doc.Objects.AddLine(line, lineAttr);
+
+            // 視線方向インジケーター（各端に矢印マーク）
+            AddDirectionIndicator(doc, line, name, viewRight, layerIdx, color);
+            return id;
+        }
+
+        private void AddDirectionIndicator(
+            RhinoDoc doc, Line line, string name,
+            bool viewRight, int layerIdx, System.Drawing.Color color)
+        {
+            var attr = new Rhino.DocObjects.ObjectAttributes
+            {
+                LayerIndex  = layerIdx,
+                ColorSource = Rhino.DocObjects.ObjectColorSource.ColorFromObject,
+                ObjectColor = color
+            };
+
+            // 切断線の方向ベクトルと視線方向ベクトル
+            var cutDir  = line.Direction; cutDir.Unitize();
+            var viewDir = viewRight
+                ? new Vector3d(-cutDir.Y,  cutDir.X, 0)   // 右手側
+                : new Vector3d( cutDir.Y, -cutDir.X, 0);  // 左手側
+
+            double tickLen  = line.Length * 0.08;
+            double arrowLen = tickLen * 0.6;
+
+            // 各端点に L字マーク（端点から視線方向へ）+ 矢印
+            foreach (var pt in new[] { line.From, line.To })
+            {
+                var tipPt = pt + viewDir * tickLen;
+
+                // 垂直ティック
+                doc.Objects.AddLine(new Line(pt, tipPt), attr);
+
+                // 矢印（2本の斜め線）
+                var vLeft  = viewDir;
+                var vRight = viewDir;
+                vLeft.Transform(Transform.Rotation(0.5, Vector3d.ZAxis, Point3d.Origin));
+                vRight.Transform(Transform.Rotation(-0.5, Vector3d.ZAxis, Point3d.Origin));
+                doc.Objects.AddLine(new Line(tipPt, tipPt - vLeft  * arrowLen), attr);
+                doc.Objects.AddLine(new Line(tipPt, tipPt - vRight * arrowLen), attr);
+            }
+
+            // ラベルテキスト（線の中間、視線方向寄り）
+            var midPt = line.PointAt(0.5) + viewDir * (tickLen * 0.6);
+            var te = new Rhino.Geometry.TextEntity
+            {
+                PlainText     = name,
+                TextHeight    = Math.Max(line.Length * 0.04, 200),
+                Justification = Rhino.Geometry.TextJustification.MiddleCenter
+            };
+            te.Plane = new Plane(midPt, Vector3d.ZAxis);
+            doc.Objects.Add(te, attr);
         }
 
         private int GetOrCreateMarkerLayer(RhinoDoc doc)
