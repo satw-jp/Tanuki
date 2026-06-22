@@ -188,7 +188,6 @@ namespace Tanuki.Commands
         {
             var result = new List<(Rectangle3d, string)>();
             double margin = 10;
-            double x = margin, y = margin;
             double colW = (paper.W - margin * 3) / 2;
             double rowH = (paper.H - margin * 3) / 2;
 

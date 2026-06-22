@@ -7,22 +7,22 @@ using Tanuki.Data;
 namespace Tanuki.Generators
 {
     /// <summary>
-    /// 通り芯のバブル記号（丸＋ラベル）を生成する
+    /// 図面内に配置する通り芯バブル記号（丸＋ラベル）を生成する。
+    /// モデル空間への表示は GridLineDrawer が担当。
     /// </summary>
     public static class GridSymbolGenerator
     {
-        private const double BubbleRadius = 400; // mm
+        private const double BubbleRadius = 400;
+        private const double TextHeight   = 360;
 
-        public static List<ClassifiedCurve> GenerateSymbols(RhinoDoc doc, List<GridLine> gridLines)
+        public static List<ClassifiedCurve> GenerateSymbols(List<GridLine> gridLines)
         {
             var result = new List<ClassifiedCurve>();
-            double textHeight = BubbleRadius * 0.9;
 
             foreach (var gl in gridLines)
             {
                 var line = gl.ToLine();
 
-                // 線本体
                 result.Add(new ClassifiedCurve
                 {
                     Curve = line.ToNurbsCurve(),
@@ -30,33 +30,19 @@ namespace Tanuki.Generators
                     SourceLayerIndex = 0
                 });
 
-                // 両端にバブル
-                AddBubble(result, doc, line.From, gl.Name, textHeight);
-                AddBubble(result, doc, line.To,   gl.Name, textHeight);
+                foreach (var pt in new[] { line.From, line.To })
+                {
+                    var circle = new Circle(new Plane(pt, Vector3d.ZAxis), BubbleRadius);
+                    result.Add(new ClassifiedCurve
+                    {
+                        Curve = circle.ToNurbsCurve(),
+                        LineType = LineType.Visible,
+                        SourceLayerIndex = 0
+                    });
+                }
             }
 
             return result;
-        }
-
-        private static void AddBubble(
-            List<ClassifiedCurve> result,
-            RhinoDoc doc,
-            Point3d center,
-            string label,
-            double textHeight)
-        {
-            // 丸
-            var circle = new Circle(new Plane(center, Vector3d.ZAxis), BubbleRadius);
-            result.Add(new ClassifiedCurve
-            {
-                Curve = circle.ToNurbsCurve(),
-                LineType = LineType.Visible,
-                SourceLayerIndex = 0
-            });
-
-            // ラベルはRhinoのテキストとして別途追加（PlaceにてTextEntityを使用）
-            // ClassifiedCurveに乗せられないのでTagに名前を格納
-            // → DrawingPlacerのPlaceGridTextで別途追加
         }
 
         public static void PlaceGridText(
@@ -65,7 +51,7 @@ namespace Tanuki.Generators
             int layerIdx,
             Transform offset)
         {
-            double textHeight = BubbleRadius * 0.9;
+            var attr = new ObjectAttributes { LayerIndex = layerIdx };
 
             foreach (var gl in gridLines)
             {
@@ -77,13 +63,11 @@ namespace Tanuki.Generators
 
                     var te = new TextEntity
                     {
-                        PlainText  = gl.Name,
-                        TextHeight = textHeight,
+                        PlainText     = gl.Name,
+                        TextHeight    = TextHeight,
                         Justification = TextJustification.MiddleCenter
                     };
                     te.Plane = new Plane(textPt, Vector3d.ZAxis);
-
-                    var attr = new ObjectAttributes { LayerIndex = layerIdx };
                     doc.Objects.Add(te, attr);
                 }
             }

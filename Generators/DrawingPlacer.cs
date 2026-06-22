@@ -57,14 +57,7 @@ namespace Tanuki.Generators
                              :                                    hidIdx;
                 }
 
-                var attr = new ObjectAttributes
-                {
-                    LayerIndex = layerIdx,
-                    ObjectDecoration = cc.LineType == LineType.Hidden
-                        ? ObjectDecoration.None : ObjectDecoration.None
-                };
-
-                // 隠れ線は破線パターン
+                var attr = new ObjectAttributes { LayerIndex = layerIdx };
                 if (cc.LineType == LineType.Hidden)
                     attr.LinetypeSource = ObjectLinetypeSource.LinetypeFromObject;
 

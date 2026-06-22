@@ -41,7 +41,7 @@ namespace Tanuki.Generators
             // 通り芯バブル記号
             if (project.GridLines.Count > 0)
             {
-                var gridCurves = GridSymbolGenerator.GenerateSymbols(doc, project.GridLines);
+                var gridCurves = GridSymbolGenerator.GenerateSymbols(project.GridLines);
                 curves.AddRange(gridCurves);
             }
 

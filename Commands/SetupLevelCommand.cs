@@ -17,31 +17,20 @@ namespace Tanuki.Commands
 
             var go = new GetOption();
             go.SetCommandPrompt("レベルの操作を選択");
-            int addIdx   = go.AddOption("追加");
-            int listIdx  = go.AddOption("一覧");
-            int clearIdx = go.AddOption("全削除");
+            go.AddOption("追加");
+            go.AddOption("全削除");
             go.Get();
             if (go.CommandResult() != Result.Success) return go.CommandResult();
 
-            if (go.Option().Index == listIdx)
-            {
-                if (project.Levels.Count == 0) { RhinoApp.WriteLine("レベルなし"); return Result.Success; }
-                foreach (var l in project.Levels)
-                    RhinoApp.WriteLine($"  {l.Name}  Z={l.Elevation:F0}mm");
-                return Result.Success;
-            }
-
-            if (go.Option().Index == clearIdx)
+            if (go.Option().Index == 2)
             {
                 project.Levels.Clear();
                 project.Save(doc);
-                RhinoApp.WriteLine("レベルをすべて削除しました");
                 return Result.Success;
             }
 
-            // 追加
             var gn = new GetString();
-            gn.SetCommandPrompt("レベル名 (例: GL, 1FL, 2FL, RF)");
+            gn.SetCommandPrompt("レベル名 (例: 1FL)");
             gn.SetDefaultString("1FL");
             gn.Get();
             if (gn.CommandResult() != Result.Success) return gn.CommandResult();
@@ -54,7 +43,6 @@ namespace Tanuki.Commands
 
             project.Levels.Add(new Level { Name = gn.StringResult(), Elevation = gh.Number() });
             project.Save(doc);
-            RhinoApp.WriteLine($"レベル '{gn.StringResult()}' ({gh.Number():F0}mm) を追加しました");
             return Result.Success;
         }
     }
