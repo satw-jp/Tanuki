@@ -15,7 +15,7 @@
   
   <PropertyGroup>
     <!-- Specifies information for Assembly and Yak -->
-    <Version>0.5.12</Version>
+    <Version>0.5.13</Version>
     <Title>Tanuki</Title>
     <Company>satw-jp</Company>
     <Description>Architectural drawing generator for Rhino 3D — floor plans, sections, elevations and sheet layout.</Description>

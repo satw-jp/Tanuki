@@ -172,72 +172,57 @@ namespace Tanuki
 
         private void InstallToolbar()
         {
+            // McNeel 公式方式: .rhp と同じフォルダに同名の .rui を置くと
+            // プラグイン初回ロード時に Rhino が自動でツールバーを開く。
+            // （旧 _-Toolbar スクリプトは Rhino 8 で Options にリダイレクトされ
+            //   コマンドラインを宙吊りにするため廃止した）
             try
             {
-                // ① 埋め込みリソースを確認
                 var assembly = System.Reflection.Assembly.GetExecutingAssembly();
-                var names = assembly.GetManifestResourceNames();
-                RhinoApp.WriteLine($"[Tanuki] 埋め込みリソース一覧 ({names.Length} 件):");
-                foreach (var n in names) RhinoApp.WriteLine($"  {n}");
+
+                string asmPath = assembly.Location;
+                if (string.IsNullOrEmpty(asmPath))
+                {
+                    RhinoApp.WriteLine("[Tanuki] アセンブリ位置を取得できないためツールバー配置をスキップ");
+                    return;
+                }
+
+                string targetDir = System.IO.Path.GetDirectoryName(asmPath);
+                string ruiPath   = System.IO.Path.Combine(targetDir, "Tanuki.rui");
 
                 using (var stream = assembly.GetManifestResourceStream("Tanuki.EmbeddedResources.Tanuki.rui"))
                 {
                     if (stream == null)
                     {
-                        RhinoApp.WriteLine("[Tanuki] ❌ Tanuki.EmbeddedResources.Tanuki.rui が見つかりません");
+                        RhinoApp.WriteLine("[Tanuki] ❌ 埋め込み Tanuki.rui が見つかりません");
                         return;
                     }
-                    RhinoApp.WriteLine($"[Tanuki] ✓ リソースを取得 (size={stream.Length} bytes)");
 
-                    // ② 書き込み先を確認
-                    string uiDir  = GetRhinoUiDir();
-                    string ruiPath = System.IO.Path.Combine(uiDir, "Tanuki.rui");
-                    RhinoApp.WriteLine($"[Tanuki] UIDir: {uiDir}");
-                    RhinoApp.WriteLine($"[Tanuki] ruiPath: {ruiPath}");
-
-                    System.IO.Directory.CreateDirectory(uiDir);
-                    RhinoApp.WriteLine($"[Tanuki] ✓ ディレクトリ確認完了");
-
-                    // ③ ファイルを書き込む
-                    using (var fileStream = System.IO.File.Create(ruiPath))
-                        stream.CopyTo(fileStream);
-                    long written = new System.IO.FileInfo(ruiPath).Length;
-                    RhinoApp.WriteLine($"[Tanuki] ✓ .rui ファイル書き込み完了 ({written} bytes): {ruiPath}");
-
-                    // ④ RunScript でロード
-                    string cmd = $"_-Toolbar _File _Open \"{ruiPath}\" _Enter";
-                    RhinoApp.WriteLine($"[Tanuki] RunScript: {cmd}");
-                    bool ok = RhinoApp.RunScript(cmd, false);
-                    RhinoApp.WriteLine($"[Tanuki] RunScript 結果: {(ok ? "✓ 成功" : "❌ 失敗")}");
-
-                    if (!ok)
+                    // 既存ファイルとサイズが同じなら書き換えない（更新時のみ上書き）
+                    bool needWrite = true;
+                    if (System.IO.File.Exists(ruiPath))
                     {
-                        RhinoApp.WriteLine(
-                            "[Tanuki] 手動手順: オプション > 外観 > ツールバー > ファイル > 開く で " +
-                            ruiPath + " を選択してください");
+                        try { needWrite = new System.IO.FileInfo(ruiPath).Length != stream.Length; }
+                        catch { needWrite = true; }
+                    }
+
+                    if (needWrite)
+                    {
+                        using (var fileStream = System.IO.File.Create(ruiPath))
+                            stream.CopyTo(fileStream);
+                        RhinoApp.WriteLine($"[Tanuki] ✓ Tanuki.rui を配置しました: {ruiPath}");
+                        RhinoApp.WriteLine("[Tanuki] 初回ロード時に Rhino がツールバーを自動で開きます。");
+                        RhinoApp.WriteLine("[Tanuki] 表示されない場合は上記 .rui をビューポートにドラッグ＆ドロップしてください。");
+                    }
+                    else
+                    {
+                        RhinoApp.WriteLine($"[Tanuki] Tanuki.rui は最新です: {ruiPath}");
                     }
                 }
             }
             catch (System.Exception ex)
             {
                 RhinoApp.WriteLine($"[Tanuki] ❌ InstallToolbar 例外: {ex.GetType().Name}: {ex.Message}");
-                RhinoApp.WriteLine($"[Tanuki] StackTrace: {ex.StackTrace}");
-            }
-        }
-
-        private static string GetRhinoUiDir()
-        {
-            if (Rhino.Runtime.HostUtils.RunningOnWindows)
-            {
-                return System.IO.Path.Combine(
-                    System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData),
-                    "McNeel", "Rhinoceros", "8.0", "UI");
-            }
-            else
-            {
-                return System.IO.Path.Combine(
-                    System.Environment.GetFolderPath(System.Environment.SpecialFolder.Personal),
-                    "Library", "Application Support", "McNeel", "Rhinoceros", "8", "UI");
             }
         }
     }
