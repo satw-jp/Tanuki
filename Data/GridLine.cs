@@ -12,6 +12,11 @@ namespace Tanuki.Data
         public double DirectionY { get; set; } = 0;
         public double Length     { get; set; } = 20000;
 
+        // グループタグ（"X","Y" など軸方向の識別。空文字=未分類）
+        public string GroupTag  { get; set; } = "";
+        // 表示・並び順
+        public int    SortIndex { get; set; } = 0;
+
         // 不変のデータID（undo/redo 後もRhinoオブジェクトと紐付けるための安定キー）
         public Guid PersistentId { get; set; } = Guid.NewGuid();
         // Rhinoオブジェクト追跡用（ReplaceRhinoObject で更新される）

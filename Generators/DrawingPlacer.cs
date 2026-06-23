@@ -22,13 +22,14 @@ namespace Tanuki.Generators
             List<ClassifiedCurve> curves,
             Transform offset,
             LayerMode mode,
-            bool replaceExisting = true)
+            bool replaceExisting = true,
+            double minLength = 0)
         {
             if (curves.Count == 0) return -1;
             viewName = LayerSafe(viewName);
 
-            // 重複線除去・可視優先
-            curves = CurveCleanup.Process(curves, doc.ModelAbsoluteTolerance);
+            // 重複線除去・極小線除去・可視優先
+            curves = CurveCleanup.Process(curves, doc.ModelAbsoluteTolerance, minLength);
 
             if (replaceExisting) DeleteViewLayers(doc, viewName);
 

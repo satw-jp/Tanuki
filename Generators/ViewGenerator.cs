@@ -27,6 +27,9 @@ namespace Tanuki.Generators
             // 図面タイトルと縮尺を追加
             AddDrawingTitle(doc, view, project, offset);
 
+            // マーカーインジケーター（矢印・ラベル）を再描画
+            RefreshMarkerIndicators(doc, view);
+
             // PlacedOffset を保存（次回再生成時に同じ位置を使用）
             project.Save(doc);
         }
@@ -51,7 +54,8 @@ namespace Tanuki.Generators
                 curves.AddRange(gridCurves);
             }
 
-            int layerIdx = DrawingPlacer.Place(doc, view.GetLayerKey(), curves, offset, project.LayerMode, replace);
+            int layerIdx = DrawingPlacer.Place(doc, view.GetLayerKey(), curves, offset, project.LayerMode, replace,
+                                               minLength: project.ViewScale * 0.1);
 
             // 通り芯テキストラベル
             if (project.GridLines.Count > 0 && layerIdx >= 0)
@@ -93,7 +97,8 @@ namespace Tanuki.Generators
             foreach (var cc in curves)
                 cc.Curve.Transform(flatten);
 
-            int layerIdx = DrawingPlacer.Place(doc, view.GetLayerKey(), curves, offset, project.LayerMode, replace);
+            int layerIdx = DrawingPlacer.Place(doc, view.GetLayerKey(), curves, offset, project.LayerMode, replace,
+                                               minLength: project.ViewScale * 0.1);
 
             if (project.GridLines.Count > 0 && layerIdx >= 0)
                 AddCrossingGridText(doc, view, project, cutPlane, viewDir, layerIdx, offset, flatten);
@@ -294,6 +299,27 @@ namespace Tanuki.Generators
                     doc.Objects.Add(te, attr);
                 }
             }
+        }
+
+        // ── マーカーインジケーター再描画 ──────────────────────────────────────
+
+        private static void RefreshMarkerIndicators(RhinoDoc doc, ViewDef view)
+        {
+            if (view.MarkerObjectId == Guid.Empty) return;
+            if (view.MarkerIndicatorIds == null || view.MarkerIndicatorIds.Count == 0) return;
+
+            MarkerDrawer.DeleteIndicators(doc, view.MarkerIndicatorIds);
+
+            var markerLine = new Line(
+                new Point3d(view.CutStartX, view.CutStartY, 0),
+                new Point3d(view.CutEndX,   view.CutEndY,   0));
+            int layerIdx = MarkerDrawer.EnsureMarkersLayer(doc);
+            // 立面=Cyan、断面=Magenta で色を区別
+            var color = view.Type == ViewType.Elevation
+                ? System.Drawing.Color.Cyan
+                : System.Drawing.Color.Magenta;
+            view.MarkerIndicatorIds = MarkerDrawer.DrawIndicators(
+                doc, markerLine, view.Name, view.ViewRight, layerIdx, color);
         }
 
         // ── ユーティリティ ────────────────────────────────────────────────────

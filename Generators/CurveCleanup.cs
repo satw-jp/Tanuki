@@ -8,19 +8,21 @@ namespace Tanuki.Generators
     /// </summary>
     public static class CurveCleanup
     {
-        public static List<ClassifiedCurve> Process(List<ClassifiedCurve> curves, double tol)
+        /// <param name="minLength">除去する最小長(mm)。0 の場合は tol を使用。ViewScale*0.1 推奨。</param>
+        public static List<ClassifiedCurve> Process(List<ClassifiedCurve> curves, double tol, double minLength = 0)
         {
-            var deduped = RemoveDuplicates(curves, tol);
+            if (minLength < tol) minLength = tol;
+            var deduped = RemoveDuplicates(curves, tol, minLength);
             return RemoveShadowedHidden(deduped, tol);
         }
 
         // 同一線種グループ内の重複曲線を除去（始点・終点の一致で判定）
-        private static List<ClassifiedCurve> RemoveDuplicates(List<ClassifiedCurve> input, double tol)
+        private static List<ClassifiedCurve> RemoveDuplicates(List<ClassifiedCurve> input, double tol, double minLength)
         {
             var result = new List<ClassifiedCurve>();
             foreach (var cc in input)
             {
-                if (!cc.Curve.IsValid || cc.Curve.GetLength() < tol) continue;
+                if (!cc.Curve.IsValid || cc.Curve.GetLength() < minLength) continue;
                 bool isDup = false;
                 foreach (var ex in result)
                 {

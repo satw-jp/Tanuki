@@ -26,6 +26,8 @@ namespace Tanuki.Data
         public double            DefaultViewDepth     { get; set; } = 0;
         public ViewDisplayMode   DefaultDisplayMode       { get; set; } = ViewDisplayMode.Technical;
         public PresentationStyle DefaultPresentationStyle { get; set; } = PresentationStyle.SolidColor;
+        // C-1 Sheet システム（UI未実装。データ定義のみ）
+        public List<SheetDef>    Sheets                   { get; set; } = new List<SheetDef>();
 
         // ---- 永続化 ----
 
