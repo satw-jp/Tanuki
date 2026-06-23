@@ -149,14 +149,7 @@ namespace Tanuki.Generators
 
         private static int GetOrCreateLayer(RhinoDoc doc, string name, int parentIdx, Color color)
         {
-            string fullPath = parentIdx < 0 ? name
-                            : $"{doc.Layers[parentIdx].FullPath}::{name}";
-            int idx = doc.Layers.FindByFullPath(fullPath, RhinoMath.UnsetIntIndex);
-            if (idx != RhinoMath.UnsetIntIndex) return idx;
-
-            var layer = new Layer { Name = name, Color = color };
-            if (parentIdx >= 0) layer.ParentLayerId = doc.Layers[parentIdx].Id;
-            return doc.Layers.Add(layer);
+            return LayerUtil.GetOrCreate(doc, name, parentIdx, color);
         }
 
         private static Color LineTypeColor(LineType lt) =>
@@ -167,6 +160,6 @@ namespace Tanuki.Generators
                                      Color.Gray;
 
         // Rhinoのレイヤー階層セパレータ "::" をユーザー名から除去する
-        private static string LayerSafe(string name) => name.Replace("::", "_");
+        private static string LayerSafe(string name) => LayerUtil.Safe(name);
     }
 }

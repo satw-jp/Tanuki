@@ -312,8 +312,7 @@ namespace Tanuki.Generators
             int pocheIdx = doc.Layers.FindByFullPath($"Tanuki::{safe}::ポシェ", RhinoMath.UnsetIntIndex);
             if (pocheIdx >= 0)
             {
-                var existing = doc.Objects.FindByLayer(doc.Layers[pocheIdx]);
-                if (existing != null) foreach (var o in existing) doc.Objects.Delete(o, true);
+                LayerUtil.ForEachObject(doc, pocheIdx, o => doc.Objects.Delete(o, true));
             }
             else
             {

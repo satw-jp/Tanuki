@@ -47,18 +47,7 @@ namespace Tanuki.Commands
                 int li = doc.Layers.FindByFullPath(layerPath, RhinoMath.UnsetIntIndex);
                 if (li == RhinoMath.UnsetIntIndex) continue;
 
-                var objs = doc.Objects.FindByLayer(doc.Layers[li]);
-                if (objs != null)
-                    foreach (var o in objs) { o.Select(true); selectedCount++; }
-
-                var children = doc.Layers[li].GetChildren();
-                if (children != null)
-                    foreach (var child in children)
-                    {
-                        var co = doc.Objects.FindByLayer(child);
-                        if (co != null)
-                            foreach (var o in co) { o.Select(true); selectedCount++; }
-                    }
+                Tanuki.Generators.LayerUtil.ForEachObject(doc, li, o => { o.Select(true); selectedCount++; });
             }
 
             if (selectedCount == 0)

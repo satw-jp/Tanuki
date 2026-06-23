@@ -246,15 +246,7 @@ namespace Tanuki.UI
             int li = doc.Layers.FindByFullPath(layerPath, RhinoMath.UnsetIntIndex);
             if (li == RhinoMath.UnsetIntIndex) return;
             bool any = false;
-            var objs = doc.Objects.FindByLayer(doc.Layers[li]);
-            if (objs != null) foreach (var o in objs) { o.Select(true); any = true; }
-            var children = doc.Layers[li].GetChildren();
-            if (children != null)
-                foreach (var child in children)
-                {
-                    var co = doc.Objects.FindByLayer(child);
-                    if (co != null) foreach (var o in co) { o.Select(true); any = true; }
-                }
+            LayerUtil.ForEachObject(doc, li, o => { o.Select(true); any = true; });
             if (any)
             {
                 RhinoApp.RunScript("_Zoom _Selected", false);
@@ -267,15 +259,7 @@ namespace Tanuki.UI
             string path = $"Tanuki::{layerKey}";
             int li = doc.Layers.FindByFullPath(path, RhinoMath.UnsetIntIndex);
             if (li == RhinoMath.UnsetIntIndex) return;
-            Action<int> selectAll = null;
-            selectAll = (idx) =>
-            {
-                var objs = doc.Objects.FindByLayer(doc.Layers[idx]);
-                if (objs != null) foreach (var o in objs) o.Select(true);
-                var ch = doc.Layers[idx].GetChildren();
-                if (ch != null) foreach (var c in ch) selectAll(c.Index);
-            };
-            selectAll(li);
+            LayerUtil.ForEachObject(doc, li, o => o.Select(true));
         }
 
         private void OnAddMarker()

@@ -198,11 +198,7 @@ namespace Tanuki.Generators
 
         private static int GetOrCreateLayer(RhinoDoc doc, string name, int parentIdx, System.Drawing.Color color)
         {
-            string path = $"{doc.Layers[parentIdx].FullPath}::{name}";
-            int idx = doc.Layers.FindByFullPath(path, RhinoMath.UnsetIntIndex);
-            if (idx != RhinoMath.UnsetIntIndex) return idx;
-            var layer = new Rhino.DocObjects.Layer { Name = name, Color = color, ParentLayerId = doc.Layers[parentIdx].Id };
-            return doc.Layers.Add(layer);
+            return LayerUtil.GetOrCreate(doc, name, parentIdx, color);
         }
     }
 }

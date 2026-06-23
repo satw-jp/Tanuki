@@ -164,19 +164,11 @@ namespace Tanuki.Generators
         private static int GetOrCreateLayer(
             RhinoDoc doc, string fullPath, string parentFullPath, System.Drawing.Color color)
         {
-            int existing = doc.Layers.FindByFullPath(fullPath, RhinoMath.UnsetIntIndex);
-            if (existing != RhinoMath.UnsetIntIndex) return existing;
-
+            int parentIdx = parentFullPath != null
+                ? doc.Layers.FindByFullPath(parentFullPath, RhinoMath.UnsetIntIndex)
+                : -1;
             string name = fullPath.Contains("::") ? fullPath.Substring(fullPath.LastIndexOf("::") + 2) : fullPath;
-            var layer = new Layer { Name = name, Color = color };
-
-            if (parentFullPath != null)
-            {
-                int parentIdx = doc.Layers.FindByFullPath(parentFullPath, RhinoMath.UnsetIntIndex);
-                if (parentIdx != RhinoMath.UnsetIntIndex)
-                    layer.ParentLayerId = doc.Layers[parentIdx].Id;
-            }
-            return doc.Layers.Add(layer);
+            return LayerUtil.GetOrCreate(doc, name, parentIdx, color);
         }
     }
 }

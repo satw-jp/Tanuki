@@ -171,16 +171,7 @@ namespace Tanuki.Commands
             string layerPath = $"Tanuki::{layerKey}";
             int li = doc.Layers.FindByFullPath(layerPath, RhinoMath.UnsetIntIndex);
             if (li == RhinoMath.UnsetIntIndex) return bbox;
-            var objs = doc.Objects.FindByLayer(doc.Layers[li]);
-            if (objs == null) return bbox;
-            foreach (var o in objs) bbox.Union(o.Geometry.GetBoundingBox(true));
-            var children = doc.Layers[li].GetChildren();
-            if (children != null)
-                foreach (var child in children)
-                {
-                    var co = doc.Objects.FindByLayer(child);
-                    if (co != null) foreach (var o in co) bbox.Union(o.Geometry.GetBoundingBox(true));
-                }
+            Tanuki.Generators.LayerUtil.ForEachObject(doc, li, o => bbox.Union(o.Geometry.GetBoundingBox(true)));
             return bbox;
         }
 

@@ -145,6 +145,8 @@ namespace Tanuki.Generators
                 {
                     var hidden = new System.Collections.Generic.List<Curve>();
                     ClassifyEdges(obj.Geometry, cutPlane, rcpViewDir, visible, hidden);
+                    foreach (var c in hidden)
+                        result.Add(new ClassifiedCurve { Curve = c, LineType = LineType.Hidden, SourceLayerIndex = srcLayer });
                 }
                 else
                 {

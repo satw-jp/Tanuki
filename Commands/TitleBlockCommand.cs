@@ -174,12 +174,7 @@ namespace Tanuki.Commands
 
         private static int EnsureLayer(RhinoDoc doc, string name, int parentIdx, Color color)
         {
-            string path = parentIdx < 0 ? name : $"{doc.Layers[parentIdx].FullPath}::{name}";
-            int idx = doc.Layers.FindByFullPath(path, RhinoMath.UnsetIntIndex);
-            if (idx != RhinoMath.UnsetIntIndex) return idx;
-            var layer = new Layer { Name = name, Color = color };
-            if (parentIdx >= 0) layer.ParentLayerId = doc.Layers[parentIdx].Id;
-            return doc.Layers.Add(layer);
+            return Tanuki.Generators.LayerUtil.GetOrCreate(doc, name, parentIdx, color);
         }
     }
 }

@@ -397,10 +397,12 @@ namespace Tanuki.UI
             {
                 int idx = _grid.SelectedRow;
                 var doc = RhinoDoc.ActiveDoc;
-                if (doc == null || idx < 0 || string.IsNullOrWhiteSpace(_tbName.Text)) return;
+                if (doc == null || idx < 0) return;
+                string trimmed = _tbName.Text == null ? "" : _tbName.Text.Trim().Replace("::", "_");
+                if (trimmed.Length == 0) return;
                 var project = TanukiProject.Load(doc);
                 if (idx >= project.GridLines.Count) return;
-                project.GridLines[idx].Name = _tbName.Text.Trim().Replace("::", "_");
+                project.GridLines[idx].Name = trimmed;
                 GridLineDrawer.SyncAll(doc, project.GridLines);
                 project.Save(doc);
                 Refresh();
