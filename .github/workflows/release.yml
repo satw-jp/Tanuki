@@ -19,33 +19,26 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release
 
-      - name: Download Yak
-        run: |
-          curl -L -o yak.zip "https://files.mcneel.com/yak/tool/latest/mac/yak.zip"
-          unzip yak.zip -d yak_bin
-
       - name: Package
         run: |
           mkdir dist
           cp bin/Release/net7.0/Tanuki.rhp dist/
-          cp manifest.yml dist/
-          cd dist && ../../yak_bin/yak build
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.yak
+          files: dist/Tanuki.rhp
           body: |
-            ## Install
-            1. Download the `.yak` file
-            2. Drag & drop onto Rhino viewport
-            3. Restart Rhino
+            ## インストール方法
+            1. `Tanuki.rhp` をダウンロード
+            2. Rhino 8 のビューポートにドラッグ&ドロップ
+            3. Rhino を再起動
 
-            ## Commands
-            - `TanukiSetupGrid` — set up grid lines
-            - `TanukiSetupLevel` — set up floor levels
-            - `TanukiFloorPlan` — generate floor plan
-            - `TanukiRCP` — reflected ceiling plan
-            - `TanukiSection` — section (any angle)
-            - `TanukiElevation` — elevation (any angle)
-            - `TanukiUpdateAll` — regenerate all views
+            ## コマンド一覧
+            - `TanukiSetupGrid` — 通り芯の設定
+            - `TanukiSetupLevel` — レベルの設定
+            - `TanukiFloorPlan` — 平面図生成
+            - `TanukiRCP` — 天井伏図生成
+            - `TanukiSection` — 断面図生成（任意角度）
+            - `TanukiElevation` — 立面図生成（任意角度）
+            - `TanukiUpdateAll` — 全図面を再生成
