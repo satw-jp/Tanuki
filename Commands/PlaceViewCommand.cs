@@ -9,7 +9,8 @@ using Tanuki.Generators;
 namespace Tanuki.Commands
 {
     /// <summary>
-    /// 既存の図面を任意の位置に再配置する
+    /// 既存の図面を任意の位置に再配置する。
+    /// HasPlacement が true の場合は差分移動（高速）、未配置の場合のみ再生成する。
     /// </summary>
     public class TanukiPlaceView : Command
     {
@@ -44,26 +45,58 @@ namespace Tanuki.Commands
             if (gp.CommandResult() != Result.Success) return gp.CommandResult();
 
             var pt = gp.Point();
-
-            // モデルBBoxの左下を基準にオフセット計算
             var bbox = DrawingPlacer.GetModelBBox(doc);
 
+            // 新オフセット計算
+            double newOffX, newOffY;
             if (view.Type == ViewType.Section || view.Type == ViewType.Elevation)
             {
-                // 断面/立面はXY平面に展開済み: クリック点のX = 切断始点のX、Y は常に0
-                view.PlacedOffsetX = pt.X;
-                view.PlacedOffsetY = 0;
+                newOffX = pt.X;
+                newOffY = 0;
             }
             else
             {
-                view.PlacedOffsetX = pt.X - bbox.Min.X;
-                view.PlacedOffsetY = pt.Y - bbox.Min.Y;
+                newOffX = bbox.IsValid ? pt.X - bbox.Min.X : pt.X;
+                newOffY = bbox.IsValid ? pt.Y - bbox.Min.Y : pt.Y;
             }
-            view.HasPlacement  = true;
-            project.Save(doc);
 
-            ViewGenerator.Generate(doc, view, project, replaceExisting: true);
+            if (view.HasPlacement)
+            {
+                // 差分移動: 全オブジェクトを平行移動するだけなので瞬時に完了
+                double dx = newOffX - view.PlacedOffsetX;
+                double dy = newOffY - view.PlacedOffsetY;
+                var delta = Transform.Translation(dx, dy, 0);
+                MoveLayerRecursive(doc, $"Tanuki::{view.GetLayerKey()}", delta);
+                view.PlacedOffsetX = newOffX;
+                view.PlacedOffsetY = newOffY;
+                project.Save(doc);
+                doc.Views.Redraw();
+            }
+            else
+            {
+                // 未配置の場合のみフル再生成（初回のみ）
+                view.PlacedOffsetX = newOffX;
+                view.PlacedOffsetY = newOffY;
+                view.HasPlacement  = true;
+                project.Save(doc);
+                ViewGenerator.Generate(doc, view, project, replaceExisting: true);
+            }
+
             return Result.Success;
+        }
+
+        private static void MoveLayerRecursive(RhinoDoc doc, string fullPath, Transform move)
+        {
+            int li = doc.Layers.FindByFullPath(fullPath, RhinoMath.UnsetIntIndex);
+            if (li == RhinoMath.UnsetIntIndex) return;
+            var objs = doc.Objects.FindByLayer(doc.Layers[li]);
+            if (objs != null)
+                foreach (var o in objs)
+                    doc.Objects.Transform(o.Id, move, true);
+            var children = doc.Layers[li].GetChildren();
+            if (children != null)
+                foreach (var child in children)
+                    MoveLayerRecursive(doc, child.FullPath, move);
         }
     }
 }

@@ -78,7 +78,11 @@ namespace Tanuki.Generators
                 DrawingPlacer.PlacePresentation(doc, regions, view.GetLayerKey(), flatten, offset);
             }
 
-            var curves = LineClassifier.Classify(doc, cutPlane, viewDir);
+            // 断面線の幅方向外にあるオブジェクトをスキップ（幅方向カリングで大幅高速化）
+            var cutDirVec = new Vector3d(view.CutEndX - view.CutStartX, view.CutEndY - view.CutStartY, 0);
+            double cutLength2D = cutDirVec.Length;
+            cutDirVec.Unitize();
+            var curves = LineClassifier.Classify(doc, cutPlane, viewDir, cutDirVec, cutLength2D, cutMargin: 2000);
 
             if (project.GridLines.Count > 0)
                 AddCrossingGridLines(doc, view, project, cutPlane, viewDir, curves);

@@ -18,13 +18,22 @@ namespace Tanuki.Generators
     /// </summary>
     public static class LineClassifier
     {
+        /// <summary>
+        /// 断面/立面用の線分類。
+        /// cutDir/cutLength を指定すると断面線の幅方向外にあるオブジェクトをスキップし、
+        /// 処理コストを大幅に削減できる。
+        /// </summary>
         public static List<ClassifiedCurve> Classify(
             RhinoDoc doc,
             Plane cutPlane,
-            Vector3d viewDirection)
+            Vector3d viewDirection,
+            Vector3d cutDir    = default,
+            double cutLength   = 0,
+            double cutMargin   = 2000)
         {
             var result = new List<ClassifiedCurve>();
             double tol = doc.ModelAbsoluteTolerance;
+            bool widthCull = cutLength > 0 && cutDir.Length > 0.5;
 
             foreach (var obj in doc.Objects)
             {
@@ -34,6 +43,21 @@ namespace Tanuki.Generators
                 int srcLayer = obj.Attributes.LayerIndex;
                 var geo = obj.Geometry;
 
+                var bbox = geo.GetBoundingBox(false);
+
+                // ── 幅方向カリング（断面線の横幅外は全スキップ）──
+                if (widthCull && bbox.IsValid)
+                {
+                    double minW = double.MaxValue, maxW = double.MinValue;
+                    foreach (var corner in bbox.GetCorners())
+                    {
+                        double w = (corner - cutPlane.Origin) * cutDir;
+                        if (w < minW) minW = w;
+                        if (w > maxW) maxW = w;
+                    }
+                    if (maxW < -cutMargin || minW > cutLength + cutMargin) continue;
+                }
+
                 // ── 断面線（切断面との交差）──
                 var cuts = GetCutCurves(geo, cutPlane, tol);
                 foreach (var c in cuts)
@@ -41,7 +65,6 @@ namespace Tanuki.Generators
 
                 // ── 見え掛かり・隠れ線（面法線による自己隠蔽判定）──
                 // 切断面より先（視線方向側）にあるオブジェクトのみ投影する
-                var bbox = geo.GetBoundingBox(false);
                 bool anyBeyondCut = false;
                 if (bbox.IsValid)
                     foreach (var corner in bbox.GetCorners())
