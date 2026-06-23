@@ -127,6 +127,9 @@ namespace Tanuki
         {
             RhinoApp.Initialized -= OnRhinoInitialized;
             Rhino.UI.Panels.OpenPanel(TanukiPanel.PanelId);
+            Rhino.UI.Panels.OpenPanel(TanukiGridPanel.PanelId);
+            Rhino.UI.Panels.OpenPanel(TanukiLevelPanel.PanelId);
+            Rhino.UI.Panels.OpenPanel(TanukiSectionPanel.PanelId);
             InstallToolbar();
         }
 
@@ -137,7 +140,11 @@ namespace Tanuki
                 var assembly = System.Reflection.Assembly.GetExecutingAssembly();
                 using (var stream = assembly.GetManifestResourceStream("Tanuki.EmbeddedResources.Tanuki.rui"))
                 {
-                    if (stream == null) return;
+                    if (stream == null)
+                    {
+                        RhinoApp.WriteLine("[Tanuki] ツールバーリソースが見つかりません");
+                        return;
+                    }
 
                     string uiDir = GetRhinoUiDir();
                     System.IO.Directory.CreateDirectory(uiDir);
@@ -146,7 +153,10 @@ namespace Tanuki
                     using (var fileStream = System.IO.File.Create(ruiPath))
                         stream.CopyTo(fileStream);
 
-                    RhinoApp.RunScript($"_-Toolbar _File _Open \"{ruiPath}\"", false);
+                    RhinoApp.WriteLine($"[Tanuki] ツールバーファイル: {ruiPath}");
+
+                    // Rhino 8 on Windows ではこのコマンドでツールバーファイルを開く
+                    RhinoApp.RunScript($"_-Toolbar _File _Open \"{ruiPath}\" _Enter", false);
                 }
             }
             catch (System.Exception ex)
