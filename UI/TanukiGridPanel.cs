@@ -20,6 +20,7 @@ namespace Tanuki.UI
         private TextBox  _tbName;
         private TextBox  _tbBubble;
         private Label    _lblInfo;
+        private bool     _suppressViewportSelect = false;
 
         // データモデル
         private class GridRow
@@ -110,8 +111,9 @@ namespace Tanuki.UI
             Content = layout;
 
             Refresh();
-            RhinoDoc.ActiveDocumentChanged += (s, e) => { try { Refresh(); } catch { } };
-            TanukiPlugin.GridLinesChanged  += (s, e) => { try { Refresh(); } catch { } };
+            RhinoDoc.ActiveDocumentChanged    += (s, e) => { try { Refresh(); } catch { } };
+            TanukiPlugin.GridLinesChanged     += (s, e) => { try { Refresh(); } catch { } };
+            TanukiPlugin.GridLineObjectSelected += OnGridLineObjectSelected;
         }
 
         // ── Actions ──────────────────────────────────────────────
@@ -305,6 +307,7 @@ namespace Tanuki.UI
 
         private void OnSelect()
         {
+            if (_suppressViewportSelect) return;
             Application.Instance.Invoke(() =>
             {
                 int idx = _grid.SelectedRow;
@@ -315,6 +318,31 @@ namespace Tanuki.UI
                 var g = project.GridLines[idx];
                 _lblInfo.Text = $"始点 ({g.OriginX:F0}, {g.OriginY:F0})  長さ {g.Length:F0} mm";
                 _tbName.Text  = g.Name;
+
+                // ビューポートの通り芯線を選択
+                if (g.LineObjectId != Guid.Empty)
+                {
+                    doc.Objects.UnselectAll();
+                    doc.Objects.Select(g.LineObjectId);
+                    doc.Views.Redraw();
+                }
+            });
+        }
+
+        // ビューポートで通り芯線が選択されたときにパネルの行を反応させる
+        private void OnGridLineObjectSelected(object sender, Guid id)
+        {
+            Application.Instance.Invoke(() =>
+            {
+                if (IsDisposed) return;
+                var doc = RhinoDoc.ActiveDoc;
+                if (doc == null) return;
+                var project = TanukiProject.Load(doc);
+                int idx = project.GridLines.FindIndex(gl => gl.LineObjectId == id);
+                if (idx < 0) return;
+                _suppressViewportSelect = true;
+                _grid.SelectedRow = idx;
+                _suppressViewportSelect = false;
             });
         }
 

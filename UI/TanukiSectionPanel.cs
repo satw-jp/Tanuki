@@ -16,6 +16,7 @@ namespace Tanuki.UI
         private GridView _grid;
         private TextBox  _tbRename;
         private Label    _lblCount;
+        private bool     _suppressViewportSelect = false;
 
         private class ViewRow
         {
@@ -42,6 +43,8 @@ namespace Tanuki.UI
 
             // ── ツールバー ────────────────────────────────────────
             var tb = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 2 };
+            tb.Items.Add(Btn("断面+", "新規断面図", OnNewSection));
+            tb.Items.Add(Btn("立面+", "新規立面図", OnNewElevation));
             tb.Items.Add(Btn("🔄", "再生成",   OnRegenerate));
             tb.Items.Add(Btn("🔍", "ズーム",   OnZoom));
             tb.Items.Add(Btn("✕",  "削除",     OnDelete));
@@ -86,14 +89,26 @@ namespace Tanuki.UI
             Content = layout;
 
             Refresh();
-            RhinoDoc.ActiveDocumentChanged += (s, e) => { try { Refresh(); } catch { } };
-            TanukiPlugin.ViewsChanged      += (s, e) => { try { Refresh(); } catch { } };
+            RhinoDoc.ActiveDocumentChanged    += (s, e) => { try { Refresh(); } catch { } };
+            TanukiPlugin.ViewsChanged         += (s, e) => { try { Refresh(); } catch { } };
+            TanukiPlugin.MarkerObjectSelected += OnMarkerObjectSelected;
         }
 
         // ── Actions ──────────────────────────────────────────────
 
+        private void OnNewSection()
+        {
+            RhinoApp.InvokeOnUiThread(new Action(() => RhinoApp.RunScript("_TanukiSection", false)));
+        }
+
+        private void OnNewElevation()
+        {
+            RhinoApp.InvokeOnUiThread(new Action(() => RhinoApp.RunScript("_TanukiElevation", false)));
+        }
+
         private void OnSelect()
         {
+            if (_suppressViewportSelect) return;
             Application.Instance.Invoke(() =>
             {
                 int idx = _grid.SelectedRow;
@@ -101,7 +116,33 @@ namespace Tanuki.UI
                 if (doc == null || idx < 0) return;
                 var project = TanukiProject.Load(doc);
                 if (idx >= project.Views.Count) return;
-                _tbRename.Text = project.Views[idx].Name;
+                var view = project.Views[idx];
+                _tbRename.Text = view.Name;
+
+                // ビューポートのマーカーを選択
+                if (view.MarkerObjectId != Guid.Empty)
+                {
+                    doc.Objects.UnselectAll();
+                    doc.Objects.Select(view.MarkerObjectId);
+                    doc.Views.Redraw();
+                }
+            });
+        }
+
+        // ビューポートでマーカーが選択されたときにパネルの行を反応させる
+        private void OnMarkerObjectSelected(object sender, Guid id)
+        {
+            Application.Instance.Invoke(() =>
+            {
+                if (IsDisposed) return;
+                var doc = RhinoDoc.ActiveDoc;
+                if (doc == null) return;
+                var project = TanukiProject.Load(doc);
+                int idx = project.Views.FindIndex(v => v.MarkerObjectId == id);
+                if (idx < 0) return;
+                _suppressViewportSelect = true;
+                _grid.SelectedRow = idx;
+                _suppressViewportSelect = false;
             });
         }
 

@@ -13,16 +13,20 @@ namespace Tanuki
 
         public static event System.EventHandler GridLinesChanged;
         public static event System.EventHandler ViewsChanged;
+        public static event System.EventHandler<System.Guid> MarkerObjectSelected;
+        public static event System.EventHandler<System.Guid> GridLineObjectSelected;
 
         internal static void RaiseGridLinesChanged()
-        {
-            GridLinesChanged?.Invoke(null, System.EventArgs.Empty);
-        }
+            => GridLinesChanged?.Invoke(null, System.EventArgs.Empty);
 
         internal static void RaiseViewsChanged()
-        {
-            ViewsChanged?.Invoke(null, System.EventArgs.Empty);
-        }
+            => ViewsChanged?.Invoke(null, System.EventArgs.Empty);
+
+        internal static void RaiseMarkerObjectSelected(System.Guid id)
+            => MarkerObjectSelected?.Invoke(null, id);
+
+        internal static void RaiseGridLineObjectSelected(System.Guid id)
+            => GridLineObjectSelected?.Invoke(null, id);
 
         public TanukiPlugin()
         {
@@ -41,7 +45,6 @@ namespace Tanuki
             }
         }
 
-        // オブジェクトが置き換えられたとき：断面マーカーまたは通り芯を追跡
         private void OnObjectReplaced(object sender, Rhino.DocObjects.RhinoReplaceObjectEventArgs args)
         {
             try { OnObjectReplacedCore(args); } catch { }
@@ -112,6 +115,26 @@ namespace Tanuki
             }
         }
 
+        private void OnRhinoSelectObjects(object sender, Rhino.DocObjects.RhinoObjectSelectionEventArgs e)
+        {
+            if (!e.Selected) return;
+            var doc = e.Document;
+            if (doc == null) return;
+            try
+            {
+                var project = TanukiProject.Load(doc);
+                foreach (var obj in e.RhinoObjects)
+                {
+                    var id = obj.Id;
+                    foreach (var gl in project.GridLines)
+                        if (gl.LineObjectId == id) { RaiseGridLineObjectSelected(id); return; }
+                    foreach (var view in project.Views)
+                        if (view.MarkerObjectId == id) { RaiseMarkerObjectSelected(id); return; }
+                }
+            }
+            catch { }
+        }
+
         protected override LoadReturnCode OnLoad(ref string errorMessage)
         {
             TryRegister(typeof(TanukiPanel),        "Tanuki");
@@ -119,9 +142,12 @@ namespace Tanuki
             TryRegister(typeof(TanukiLevelPanel),   "T:Level");
             TryRegister(typeof(TanukiSectionPanel), "T:Views");
             RhinoDoc.ReplaceRhinoObject += OnObjectReplaced;
-            RhinoApp.Initialized += OnRhinoInitialized;
+            RhinoDoc.SelectObjects      += OnRhinoSelectObjects;
+            RhinoApp.Initialized        += OnRhinoInitialized;
             return LoadReturnCode.Success;
         }
+
+        private bool _toolbarInstalled = false;
 
         private void OnRhinoInitialized(object sender, System.EventArgs e)
         {
@@ -130,6 +156,15 @@ namespace Tanuki
             Rhino.UI.Panels.OpenPanel(TanukiGridPanel.PanelId);
             Rhino.UI.Panels.OpenPanel(TanukiLevelPanel.PanelId);
             Rhino.UI.Panels.OpenPanel(TanukiSectionPanel.PanelId);
+            // ツールバーは Idle 後（起動シーケンス完了後）に読み込む
+            RhinoApp.Idle += OnFirstIdle;
+        }
+
+        private void OnFirstIdle(object sender, System.EventArgs e)
+        {
+            if (_toolbarInstalled) { RhinoApp.Idle -= OnFirstIdle; return; }
+            _toolbarInstalled = true;
+            RhinoApp.Idle -= OnFirstIdle;
             InstallToolbar();
         }
 
@@ -153,10 +188,14 @@ namespace Tanuki
                     using (var fileStream = System.IO.File.Create(ruiPath))
                         stream.CopyTo(fileStream);
 
-                    RhinoApp.WriteLine($"[Tanuki] ツールバーファイル: {ruiPath}");
-
-                    // Rhino 8 on Windows ではこのコマンドでツールバーファイルを開く
-                    RhinoApp.RunScript($"_-Toolbar _File _Open \"{ruiPath}\" _Enter", false);
+                    // Rhino 8 でツールバーファイルを読み込む
+                    bool ok = RhinoApp.RunScript($"_-Toolbar _File _Open \"{ruiPath}\" _Enter", false);
+                    if (!ok)
+                    {
+                        RhinoApp.WriteLine(
+                            $"[Tanuki] ツールバーを手動で読み込んでください: " +
+                            $"オプション > 外観 > ツールバー > ファイル > 開く > {ruiPath}");
+                    }
                 }
             }
             catch (System.Exception ex)

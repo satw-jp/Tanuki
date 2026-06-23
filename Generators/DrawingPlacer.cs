@@ -78,18 +78,20 @@ namespace Tanuki.Generators
             viewName = LayerSafe(viewName);
             int viewIdx = doc.Layers.FindByFullPath($"Tanuki::{viewName}", RhinoMath.UnsetIntIndex);
             if (viewIdx == RhinoMath.UnsetIntIndex) return;
+            DeleteLayerRecursive(doc, viewIdx);
+        }
 
-            var objs = doc.Objects.FindByLayer(doc.Layers[viewIdx]);
+        // OriginalLayer モードでは孫レイヤーまで生成されるため再帰削除が必要
+        private static void DeleteLayerRecursive(RhinoDoc doc, int layerIdx)
+        {
+            var children = doc.Layers[layerIdx].GetChildren();
+            if (children != null)
+                foreach (var child in children)
+                    DeleteLayerRecursive(doc, child.Index);
+
+            var objs = doc.Objects.FindByLayer(doc.Layers[layerIdx]);
             if (objs != null) foreach (var o in objs) doc.Objects.Delete(o, true);
-
-            // 子レイヤーごと削除
-            foreach (var child in doc.Layers[viewIdx].GetChildren() ?? new Layer[0])
-            {
-                var childObjs = doc.Objects.FindByLayer(child);
-                if (childObjs != null) foreach (var o in childObjs) doc.Objects.Delete(o, true);
-                doc.Layers.Delete(child.Index, true);
-            }
-            doc.Layers.Delete(viewIdx, true);
+            doc.Layers.Delete(layerIdx, true);
         }
 
         public static BoundingBox GetModelBBox(RhinoDoc doc)
