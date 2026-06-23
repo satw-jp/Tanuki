@@ -47,6 +47,13 @@ namespace Tanuki.Data
         public ViewDisplayMode   DisplayMode       { get; set; } = ViewDisplayMode.Technical;
         public PresentationStyle PresentationStyle { get; set; } = PresentationStyle.SolidColor;
 
+        // 断面/立面の処理対象制御（パフォーマンス）
+        // IncludeMeshes=false: 高ポリゴンメッシュ(GetNakedEdges が重い)を断面処理から無視する。
+        //   デフォルト true = 従来通りメッシュを含める（既存プロジェクト互換: JSON 欠損時も初期化子で true）。
+        public bool   IncludeMeshes { get; set; } = true;
+        // ViewDepth>0: 視線方向にこの距離(mm)までのオブジェクトのみ処理する。0=無制限（従来通り）。
+        public double ViewDepth     { get; set; } = 0;
+
         // ---- ヘルパー ----
 
         public Point3d CutStart => new Point3d(CutStartX, CutStartY, 0);

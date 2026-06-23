@@ -27,9 +27,11 @@ namespace Tanuki.Generators
             RhinoDoc doc,
             Plane cutPlane,
             Vector3d viewDirection,
-            Vector3d cutDir    = default,
-            double cutLength   = 0,
-            double cutMargin   = 2000)
+            Vector3d cutDir       = default,
+            double cutLength      = 0,
+            double cutMargin      = 2000,
+            bool   includeMeshes  = true,
+            double maxDepth       = 0)
         {
             var result = new List<ClassifiedCurve>();
             double tol = doc.ModelAbsoluteTolerance;
@@ -42,6 +44,9 @@ namespace Tanuki.Generators
 
                 int srcLayer = obj.Attributes.LayerIndex;
                 var geo = obj.Geometry;
+
+                // ── メッシュ無視オプション（高ポリゴンメッシュの GetNakedEdges を回避）──
+                if (!includeMeshes && geo is Mesh) continue;
 
                 var bbox = geo.GetBoundingBox(false);
 
@@ -56,6 +61,18 @@ namespace Tanuki.Generators
                         if (w > maxW) maxW = w;
                     }
                     if (maxW < -cutMargin || minW > cutLength + cutMargin) continue;
+                }
+
+                // ── 奥行きカリング（視線方向に maxDepth より遠いオブジェクトを除外）──
+                if (maxDepth > 0 && bbox.IsValid)
+                {
+                    double minDepth = double.MaxValue;
+                    foreach (var corner in bbox.GetCorners())
+                    {
+                        double d = (corner - cutPlane.Origin) * viewDirection;
+                        if (d < minDepth) minDepth = d;
+                    }
+                    if (minDepth > maxDepth) continue;
                 }
 
                 // ── 断面線（切断面との交差）──
@@ -87,7 +104,8 @@ namespace Tanuki.Generators
         public static List<ClassifiedCurve> ClassifyFloorPlan(
             RhinoDoc doc,
             double cutHeight,
-            bool reflected = false)
+            bool reflected = false,
+            bool includeMeshes = true)
         {
             var result = new List<ClassifiedCurve>();
             double tol = doc.ModelAbsoluteTolerance;
@@ -101,6 +119,7 @@ namespace Tanuki.Generators
             {
                 if (obj.IsHidden || !obj.IsValid) continue;
                 if (IsTanukiLayer(doc, obj.Attributes.LayerIndex)) continue;
+                if (!includeMeshes && obj.Geometry is Mesh) continue;
 
                 int srcLayer = obj.Attributes.LayerIndex;
 

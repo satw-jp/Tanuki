@@ -42,7 +42,7 @@ namespace Tanuki.Generators
         private static void GenerateFloorPlan(RhinoDoc doc, ViewDef view, TanukiProject project, Transform offset, bool replace)
         {
             bool reflected = view.Type == ViewType.RCP;
-            var curves = LineClassifier.ClassifyFloorPlan(doc, view.CutHeight, reflected);
+            var curves = LineClassifier.ClassifyFloorPlan(doc, view.CutHeight, reflected, view.IncludeMeshes);
 
             // 通り芯バブル記号
             if (project.GridLines.Count > 0)
@@ -82,7 +82,8 @@ namespace Tanuki.Generators
             var cutDirVec = new Vector3d(view.CutEndX - view.CutStartX, view.CutEndY - view.CutStartY, 0);
             double cutLength2D = cutDirVec.Length;
             cutDirVec.Unitize();
-            var curves = LineClassifier.Classify(doc, cutPlane, viewDir, cutDirVec, cutLength2D, cutMargin: 2000);
+            var curves = LineClassifier.Classify(doc, cutPlane, viewDir, cutDirVec, cutLength2D, 2000,
+                                                 view.IncludeMeshes, view.ViewDepth);
 
             if (project.GridLines.Count > 0)
                 AddCrossingGridLines(doc, view, project, cutPlane, viewDir, curves);
