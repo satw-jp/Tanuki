@@ -119,7 +119,14 @@ namespace Tanuki
             TryRegister(typeof(TanukiLevelPanel),   "T:Level");
             TryRegister(typeof(TanukiSectionPanel), "T:Views");
             RhinoDoc.ReplaceRhinoObject += OnObjectReplaced;
+            RhinoApp.Initialized += OnRhinoInitialized;
             return LoadReturnCode.Success;
+        }
+
+        private void OnRhinoInitialized(object sender, System.EventArgs e)
+        {
+            RhinoApp.Initialized -= OnRhinoInitialized;
+            Rhino.UI.Panels.OpenPanel(TanukiPanel.PanelId);
         }
     }
 }
