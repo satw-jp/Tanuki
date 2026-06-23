@@ -26,7 +26,7 @@ namespace Tanuki.Generators
                 result.Add(new ClassifiedCurve
                 {
                     Curve = line.ToNurbsCurve(),
-                    LineType = LineType.Visible,
+                    LineType = LineType.Grid,
                     SourceLayerIndex = 0
                 });
 
@@ -36,7 +36,7 @@ namespace Tanuki.Generators
                     result.Add(new ClassifiedCurve
                     {
                         Curve = circle.ToNurbsCurve(),
-                        LineType = LineType.Visible,
+                        LineType = LineType.Grid,
                         SourceLayerIndex = 0
                     });
                 }

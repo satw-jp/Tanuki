@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+using System.Reflection;
 using Rhino;
 using Rhino.Commands;
 using Tanuki.Data;
@@ -5,6 +8,18 @@ using Tanuki.Generators;
 
 namespace Tanuki.Commands
 {
+    public class TanukiVersion : Command
+    {
+        public static TanukiVersion Instance { get; private set; }
+        public override string EnglishName => "TanukiVersion";
+        public TanukiVersion() { Instance = this; }
+        protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+        {
+            var ver = Assembly.GetExecutingAssembly().GetName().Version;
+            RhinoApp.WriteLine($"Tanuki v{ver.Major}.{ver.Minor}.{ver.Build}");
+            return Result.Success;
+        }
+    }
     // ── tnk 短縮コマンド群 ─────────────────────────────────────────────────
     // 各クラスは対応する Tanuki* コマンドをそのまま委譲する
 
@@ -24,4 +39,30 @@ namespace Tanuki.Commands
     public class TnkAutoLayout   : Command { public static TnkAutoLayout   Instance { get; private set; } public override string EnglishName => "TnkAutoLayout";   public TnkAutoLayout()   { Instance = this; } protected override Result RunCommand(RhinoDoc doc, RunMode mode) => RhinoApp.RunScript("TanukiAutoLayout",   false) ? Result.Success : Result.Failure; }
     public class TnkPDF         : Command { public static TnkPDF         Instance { get; private set; } public override string EnglishName => "TnkPDF";         public TnkPDF()         { Instance = this; } protected override Result RunCommand(RhinoDoc doc, RunMode mode) => RhinoApp.RunScript("TanukiPDF",         false) ? Result.Success : Result.Failure; }
     public class TnkTitleBlock  : Command { public static TnkTitleBlock  Instance { get; private set; } public override string EnglishName => "TnkTitleBlock";  public TnkTitleBlock()  { Instance = this; } protected override Result RunCommand(RhinoDoc doc, RunMode mode) => RhinoApp.RunScript("TanukiTitleBlock",  false) ? Result.Success : Result.Failure; }
+    public class TnkVersion     : Command { public static TnkVersion     Instance { get; private set; } public override string EnglishName => "TnkVersion";     public TnkVersion()     { Instance = this; } protected override Result RunCommand(RhinoDoc doc, RunMode mode) => RhinoApp.RunScript("TanukiVersion",     false) ? Result.Success : Result.Failure; }
+
+    /// <summary>
+    /// 現在ファイルを保存してRhinoを終了する。dev-reload.ps1 と組み合わせて使う。
+    /// </summary>
+    public class TanukiDevReload : Command
+    {
+        public static TanukiDevReload Instance { get; private set; }
+        public override string EnglishName => "TanukiDevReload";
+        public TanukiDevReload() { Instance = this; }
+        protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+        {
+            // 現在ファイルパスを一時ファイルに書き出す（dev-reload.ps1 が読む）
+            string path = doc != null ? doc.Path : "";
+            string tmp = Path.Combine(Path.GetTempPath(), "tanuki_reload.txt");
+            File.WriteAllText(tmp, path);
+
+            // 保存してから終了
+            RhinoApp.RunScript("_Save", false);
+            RhinoApp.InvokeOnUiThread(new Action(() =>
+            {
+                RhinoApp.RunScript("! _Exit", false);
+            }));
+            return Result.Success;
+        }
+    }
 }

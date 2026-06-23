@@ -51,7 +51,8 @@ namespace Tanuki.Commands
             }
 
             var view = new ViewDef { Name = viewName, LayerKey = viewName, Type = ViewType.FloorPlan, CutHeight = cutHeight,
-                                     IncludeMeshes = project.DefaultIncludeMeshes, ViewDepth = project.DefaultViewDepth };
+                                     IncludeMeshes = project.DefaultIncludeMeshes, ViewDepth = project.DefaultViewDepth,
+                                     LayerMode = project.LayerMode, LabelTextHeight = project.LabelTextHeight };
             ViewPlacement.Pick(doc, view);
             project.Views.RemoveAll(v => v.Name == viewName);
             project.Views.Add(view);
@@ -80,7 +81,8 @@ namespace Tanuki.Commands
 
             string name = $"RCP_{(int)gh.Number()}";
             var view = new ViewDef { Name = name, LayerKey = name, Type = ViewType.RCP, CutHeight = gh.Number(),
-                                     IncludeMeshes = project.DefaultIncludeMeshes, ViewDepth = project.DefaultViewDepth };
+                                     IncludeMeshes = project.DefaultIncludeMeshes, ViewDepth = project.DefaultViewDepth,
+                                     LayerMode = project.LayerMode, LabelTextHeight = project.LabelTextHeight };
             ViewPlacement.Pick(doc, view);
             project.Views.RemoveAll(v => v.Name == name);
             project.Views.Add(view);
@@ -159,6 +161,8 @@ namespace Tanuki.Commands
                 PresentationStyle = project.DefaultPresentationStyle,
                 IncludeMeshes     = project.DefaultIncludeMeshes,
                 ViewDepth         = project.DefaultViewDepth,
+                LayerMode         = project.LayerMode,
+                LabelTextHeight   = project.LabelTextHeight,
             };
 
             // モデル上にマーカー線を追加
@@ -262,6 +266,8 @@ namespace Tanuki.Commands
                 PresentationStyle = project.DefaultPresentationStyle,
                 IncludeMeshes     = project.DefaultIncludeMeshes,
                 ViewDepth         = project.DefaultViewDepth,
+                LayerMode         = project.LayerMode,
+                LabelTextHeight   = project.LabelTextHeight,
             };
 
             // 立面マーカーをモデル上に追加（Section と同じ仕組み、色=Cyan で区別）

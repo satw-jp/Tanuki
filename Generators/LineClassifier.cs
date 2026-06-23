@@ -4,7 +4,7 @@ using Rhino.Geometry;
 
 namespace Tanuki.Generators
 {
-    public enum LineType { Cut, Visible, Hidden }
+    public enum LineType { Cut, Visible, Hidden, Level, Grid }
 
     public class ClassifiedCurve
     {
@@ -128,19 +128,30 @@ namespace Tanuki.Generators
                 foreach (var c in cuts)
                     result.Add(new ClassifiedCurve { Curve = c, LineType = LineType.Cut, SourceLayerIndex = srcLayer });
 
-                // 天井伏図のみ: カット高さより上にあるオブジェクトの見え掛かりを投影
-                if (!reflected) continue;
-
+                // 見え掛かり: 平面図=カット以下を真下投影 / 天井伏図=カット以上を背面除去投影
                 var bbox = obj.Geometry.GetBoundingBox(false);
-                bool anyAboveCut = false;
+                bool anyVisible = false;
                 if (bbox.IsValid)
                     foreach (var corner in bbox.GetCorners())
-                        if (corner.Z - cutHeight > -tol) { anyAboveCut = true; break; }
-                if (!anyAboveCut) continue;
+                    {
+                        double dz = corner.Z - cutHeight;
+                        if (reflected ? dz > -tol : dz < tol) { anyVisible = true; break; }
+                    }
+                if (!anyVisible) continue;
 
                 var visible = new System.Collections.Generic.List<Curve>();
-                var hidden  = new System.Collections.Generic.List<Curve>();
-                ClassifyEdges(obj.Geometry, cutPlane, rcpViewDir, visible, hidden);
+
+                if (reflected)
+                {
+                    var hidden = new System.Collections.Generic.List<Curve>();
+                    ClassifyEdges(obj.Geometry, cutPlane, rcpViewDir, visible, hidden);
+                }
+                else
+                {
+                    // 平面図: 真下（-Z）投影。XY平面 at cutHeight に全エッジを落とす
+                    var flatPlane = new Plane(new Point3d(0, 0, cutHeight), Vector3d.XAxis, Vector3d.YAxis);
+                    ProjectEdgesDown(obj.Geometry, flatPlane, visible);
+                }
 
                 foreach (var c in visible)
                     result.Add(new ClassifiedCurve { Curve = c, LineType = LineType.Visible, SourceLayerIndex = srcLayer });
@@ -150,6 +161,42 @@ namespace Tanuki.Generators
         }
 
         // ── Private helpers ──
+
+        private static void ProjectEdgesDown(GeometryBase geo, Plane flatPlane, List<Curve> result)
+        {
+            if (geo is Brep brep)
+            {
+                foreach (var edge in brep.Edges)
+                {
+                    var dup = edge.DuplicateCurve();
+                    if (dup == null) continue;
+                    var p = Curve.ProjectToPlane(dup, flatPlane);
+                    if (p != null && p.IsValid) result.Add(p);
+                }
+            }
+            else if (geo is Extrusion ex)
+            {
+                var br = ex.ToBrep();
+                if (br != null) ProjectEdgesDown(br, flatPlane, result);
+            }
+            else if (geo is Mesh mesh)
+            {
+                var nakedEdges = mesh.GetNakedEdges();
+                if (nakedEdges != null)
+                    foreach (var pl in nakedEdges)
+                    {
+                        var c = pl.ToNurbsCurve();
+                        if (c == null) continue;
+                        var p = Curve.ProjectToPlane(c, flatPlane);
+                        if (p != null && p.IsValid) result.Add(p);
+                    }
+            }
+            else if (geo is Curve curve)
+            {
+                var p = Curve.ProjectToPlane(curve.DuplicateCurve(), flatPlane);
+                if (p != null && p.IsValid) result.Add(p);
+            }
+        }
 
         private static List<Curve> GetCutCurves(GeometryBase geo, Plane plane, double tol)
         {
@@ -171,7 +218,10 @@ namespace Tanuki.Generators
             List<Curve> visible,
             List<Curve> hidden)
         {
-            var projectPlane = new Plane(cutPlane.Origin, viewDir);
+            // XAxis=切断線水平方向, YAxis=ZAxis にして projPlane と一致させる
+            var cutH = Vector3d.CrossProduct(Vector3d.ZAxis, viewDir); // viewDir の左方向 = 切断線方向
+            cutH.Unitize();
+            var projectPlane = new Plane(cutPlane.Origin, cutH, Vector3d.ZAxis);
 
             if      (geo is Brep brep)    { ClassifyBrepEdges(brep, projectPlane, viewDir, visible, hidden); }
             else if (geo is Extrusion ex) { var br = ex.ToBrep(); if (br != null) ClassifyBrepEdges(br, projectPlane, viewDir, visible, hidden); }
@@ -182,10 +232,16 @@ namespace Tanuki.Generators
                     foreach (var pl in nakedEdges)
                     {
                         var c = pl.ToNurbsCurve();
-                        if (c != null && c.IsValid) visible.Add(c);
+                        if (c == null || !c.IsValid) continue;
+                        var p = Curve.ProjectToPlane(c, projectPlane);
+                        if (p != null && p.IsValid) visible.Add(p);
                     }
             }
-            else if (geo is Curve curve) { visible.Add(curve.DuplicateCurve()); }
+            else if (geo is Curve curve)
+            {
+                var p = Curve.ProjectToPlane(curve.DuplicateCurve(), projectPlane);
+                if (p != null && p.IsValid) visible.Add(p);
+            }
         }
 
         private static void ClassifyBrepEdges(

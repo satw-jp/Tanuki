@@ -4,7 +4,6 @@ using Eto.Drawing;
 using Rhino;
 using Rhino.UI;
 using Tanuki.Data;
-using Tanuki.Generators;
 
 namespace Tanuki.UI
 {
@@ -13,11 +12,6 @@ namespace Tanuki.UI
     {
         public static Guid PanelId => typeof(TanukiPanel).GUID;
 
-        private readonly RadioButton _rbLineType;
-        private readonly RadioButton _rbOriginal;
-        private TextBox              _tbLabelHeight;
-        private CheckBox             _cbIgnoreMesh;
-        private TextBox              _tbViewDepth;
 
         public TanukiPanel(uint documentSerialNumber)
         {
@@ -60,41 +54,6 @@ namespace Tanuki.UI
             toggleRow.Items.Add(IBtn("⚪", "隠れ線の表示/非表示",    () => ToggleLayerSuffix("隠れ線")));
             layout.AddRow(toggleRow);
             layout.AddRow(new Panel { Height = 1, BackgroundColor = Colors.DarkGray });
-
-            // ── レイヤーモード ────────────────────────────────────────────────
-            _rbLineType = new RadioButton { Text = "線種", Checked = true };
-            _rbOriginal = new RadioButton(_rbLineType) { Text = "元レイヤー" };
-            _rbLineType.CheckedChanged += (s, e) => SaveLayerMode();
-            var modeRow = new StackLayout
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 8,
-                Items = { _rbLineType, _rbOriginal }
-            };
-            layout.AddRow(modeRow);
-
-            // ── 図面名文字高さ ────────────────────────────────────────────────
-            var labelRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
-            labelRow.Items.Add(new Label { Text = "図面名高さ:", VerticalAlignment = VerticalAlignment.Center });
-            _tbLabelHeight = new TextBox { Text = "500", Width = 60 };
-            labelRow.Items.Add(_tbLabelHeight);
-            labelRow.Items.Add(new Label { Text = "mm", VerticalAlignment = VerticalAlignment.Center });
-            labelRow.Items.Add(IBtn("適用", "図面タイトル文字高さを変更", OnApplyLabelHeight));
-            layout.AddRow(labelRow);
-
-            // ── 断面パフォーマンス既定（全図面に一括適用） ──────────────────
-            var perfRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
-            _cbIgnoreMesh = new CheckBox { Text = "断面でメッシュ無視" };
-            perfRow.Items.Add(_cbIgnoreMesh);
-            layout.AddRow(perfRow);
-
-            var depthRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
-            depthRow.Items.Add(new Label { Text = "視線奥行き:", VerticalAlignment = VerticalAlignment.Center });
-            _tbViewDepth = new TextBox { Text = "0", Width = 60 };
-            depthRow.Items.Add(_tbViewDepth);
-            depthRow.Items.Add(new Label { Text = "mm(0=無制限)", VerticalAlignment = VerticalAlignment.Center });
-            depthRow.Items.Add(IBtn("適用", "メッシュ無視/奥行きを全断面に適用して再生成", OnApplyPerf));
-            layout.AddRow(depthRow);
 
             layout.Add(null);
 
@@ -154,50 +113,5 @@ namespace Tanuki.UI
             doc.Views.Redraw();
         }
 
-        private void SaveLayerMode()
-        {
-            var doc = RhinoDoc.ActiveDoc;
-            if (doc == null) return;
-            var project = TanukiProject.Load(doc);
-            project.LayerMode = _rbLineType.Checked ? LayerMode.LineType : LayerMode.OriginalLayer;
-            project.Save(doc);
-        }
-
-        private void OnApplyLabelHeight()
-        {
-            var doc = RhinoDoc.ActiveDoc;
-            if (doc == null) return;
-            if (!double.TryParse(_tbLabelHeight.Text, out double h) || h <= 0) return;
-            var project = TanukiProject.Load(doc);
-            project.LabelTextHeight = h;
-            project.Save(doc);
-        }
-
-        private void OnApplyPerf()
-        {
-            var doc = RhinoDoc.ActiveDoc;
-            if (doc == null) return;
-            double depth;
-            if (!double.TryParse(_tbViewDepth.Text, out depth) || depth < 0) depth = 0;
-            bool ignoreMesh = _cbIgnoreMesh.Checked ?? false;
-
-            var project = TanukiProject.Load(doc);
-            project.DefaultIncludeMeshes = !ignoreMesh;
-            project.DefaultViewDepth     = depth;
-            foreach (var v in project.Views)
-            {
-                v.IncludeMeshes = !ignoreMesh;
-                v.ViewDepth     = depth;
-            }
-            project.Save(doc);
-
-            var snap = project;
-            RhinoApp.InvokeOnUiThread(new Action(() =>
-            {
-                foreach (var v in snap.Views)
-                    ViewGenerator.Generate(doc, v, snap);
-                TanukiPlugin.RaiseViewsChanged();
-            }));
-        }
     }
 }

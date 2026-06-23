@@ -48,11 +48,12 @@ namespace Tanuki.Data
         public PresentationStyle PresentationStyle { get; set; } = PresentationStyle.SolidColor;
 
         // 断面/立面の処理対象制御（パフォーマンス）
-        // IncludeMeshes=false: 高ポリゴンメッシュ(GetNakedEdges が重い)を断面処理から無視する。
-        //   デフォルト true = 従来通りメッシュを含める（既存プロジェクト互換: JSON 欠損時も初期化子で true）。
         public bool   IncludeMeshes { get; set; } = true;
-        // ViewDepth>0: 視線方向にこの距離(mm)までのオブジェクトのみ処理する。0=無制限（従来通り）。
         public double ViewDepth     { get; set; } = 0;
+
+        // ビュー固有の描画設定
+        public LayerMode LayerMode       { get; set; } = LayerMode.LineType;
+        public double    LabelTextHeight { get; set; } = 500;
 
         // ---- ヘルパー ----
 

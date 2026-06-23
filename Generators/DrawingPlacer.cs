@@ -38,6 +38,8 @@ namespace Tanuki.Generators
             int cutIdx   = GetOrCreateLayer(doc, "断面線",    viewIdx,  Color.Red);
             int visIdx   = GetOrCreateLayer(doc, "見え掛かり", viewIdx, Color.Black);
             int hidIdx   = GetOrCreateLayer(doc, "隠れ線",    viewIdx,  Color.Gray);
+            int lvlIdx   = GetOrCreateLayer(doc, "レベル線",  viewIdx,  Color.FromArgb(0, 120, 200));
+            int gridIdx  = GetOrCreateLayer(doc, "通り芯",    viewIdx,  Color.FromArgb(0, 160, 80));
 
             foreach (var cc in curves)
             {
@@ -51,7 +53,9 @@ namespace Tanuki.Generators
                     var srcLayer = doc.Layers[cc.SourceLayerIndex];
                     string suffix = cc.LineType == LineType.Cut     ? "断面線"
                                   : cc.LineType == LineType.Visible ? "見え掛かり"
-                                  :                                    "隠れ線";
+                                  : cc.LineType == LineType.Hidden  ? "隠れ線"
+                                  : cc.LineType == LineType.Level   ? "レベル線"
+                                  :                                    "通り芯";
                     int srcInView = GetOrCreateLayer(doc, srcLayer?.Name ?? "Default", viewIdx, srcLayer?.Color ?? Color.Black);
                     layerIdx = GetOrCreateLayer(doc, suffix, srcInView, LineTypeColor(cc.LineType));
                 }
@@ -59,7 +63,9 @@ namespace Tanuki.Generators
                 {
                     layerIdx = cc.LineType == LineType.Cut     ? cutIdx
                              : cc.LineType == LineType.Visible ? visIdx
-                             :                                    hidIdx;
+                             : cc.LineType == LineType.Hidden  ? hidIdx
+                             : cc.LineType == LineType.Level   ? lvlIdx
+                             :                                    gridIdx;
                 }
 
                 var attr = new ObjectAttributes { LayerIndex = layerIdx };
@@ -154,8 +160,11 @@ namespace Tanuki.Generators
         }
 
         private static Color LineTypeColor(LineType lt) =>
-            lt == LineType.Cut     ? Color.Red   :
-            lt == LineType.Visible ? Color.Black  : Color.Gray;
+            lt == LineType.Cut     ? Color.Red                      :
+            lt == LineType.Visible ? Color.Black                    :
+            lt == LineType.Level   ? Color.FromArgb(0, 120, 200)   :
+            lt == LineType.Grid    ? Color.FromArgb(0, 160, 80)    :
+                                     Color.Gray;
 
         // Rhinoのレイヤー階層セパレータ "::" をユーザー名から除去する
         private static string LayerSafe(string name) => name.Replace("::", "_");

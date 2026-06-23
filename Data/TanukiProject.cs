@@ -11,7 +11,7 @@ namespace Tanuki.Data
     public class TanukiProject
     {
         private const string DocKey = "TanukiProject";
-        private const int    CurrentSchemaVersion = 3;
+        private const int    CurrentSchemaVersion = 4;
 
         public int               SchemaVersion { get; set; } = CurrentSchemaVersion;
         public List<GridLine>    GridLines    { get; set; } = new List<GridLine>();
@@ -66,10 +66,18 @@ namespace Tanuki.Data
             }
 
             // v2 → v3: DisplayMode / PresentationStyle を追加
-            // System.Text.Json は欠損フィールドを enum の 0 番値（Technical / SolidColor）で補完するため
-            // 既存図面の動作は変わらない。
             if (p.SchemaVersion < 3)
             {
+            }
+
+            // v3 → v4: LayerMode と LabelTextHeight をビュー単位に移行
+            if (p.SchemaVersion < 4)
+            {
+                foreach (var v in p.Views)
+                {
+                    v.LayerMode       = p.LayerMode;
+                    v.LabelTextHeight = p.LabelTextHeight;
+                }
             }
 
             p.SchemaVersion = CurrentSchemaVersion;

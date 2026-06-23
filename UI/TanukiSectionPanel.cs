@@ -13,12 +13,16 @@ namespace Tanuki.UI
     {
         public static Guid PanelId => typeof(TanukiSectionPanel).GUID;
 
-        private GridView _grid;
-        private TextBox  _tbRename;
-        private Label    _lblCount;
-        private CheckBox _cbViewMesh;
-        private TextBox  _tbViewDepth;
-        private bool     _suppressViewportSelect = false;
+        private GridView    _grid;
+        private TextBox     _tbRename;
+        private Label       _lblCount;
+        private CheckBox    _cbViewMesh;
+        private TextBox     _tbViewDepth;
+        private TextBox     _tbLabelHeight;
+        private TextBox     _tbCutHeight;
+        private RadioButton _rbLineType;
+        private RadioButton _rbOriginal;
+        private bool        _suppressViewportSelect = false;
 
         private class ViewRow
         {
@@ -47,9 +51,10 @@ namespace Tanuki.UI
             var tb = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 2 };
             tb.Items.Add(Btn("断面+", "新規断面図", OnNewSection));
             tb.Items.Add(Btn("立面+", "新規立面図", OnNewElevation));
-            tb.Items.Add(Btn("🔄", "再生成",   OnRegenerate));
-            tb.Items.Add(Btn("🔍", "ズーム",   OnZoom));
-            tb.Items.Add(Btn("✕",  "削除",     OnDelete));
+            tb.Items.Add(Btn("🔄", "再生成",       OnRegenerate));
+            tb.Items.Add(Btn("📍", "マーカー追加", OnAddMarker));
+            tb.Items.Add(Btn("🔍", "ズーム",       OnZoom));
+            tb.Items.Add(Btn("✕",  "削除",         OnDelete));
             layout.AddRow(tb);
 
             // ── GridView ─────────────────────────────────────────
@@ -89,18 +94,47 @@ namespace Tanuki.UI
 
             layout.AddRow(new Panel { Height = 1, BackgroundColor = Colors.DarkGray });
 
-            // ── 選択図面のパフォーマンス上書き（メッシュ無視・視線奥行き） ──
+            // ── 選択図面の設定 ──────────────────────────────────────
+            // レイヤーモード
+            _rbLineType = new RadioButton { Text = "線種", Checked = true };
+            _rbOriginal = new RadioButton(_rbLineType) { Text = "元レイヤー" };
+            var modeRow = new StackLayout
+            {
+                Orientation = Orientation.Horizontal, Spacing = 6,
+                Items = { new Label { Text = "レイヤー:", VerticalAlignment = VerticalAlignment.Center },
+                          _rbLineType, _rbOriginal }
+            };
+            layout.AddRow(modeRow);
+
+            // 図面名文字高さ
+            var labelRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
+            labelRow.Items.Add(new Label { Text = "図面名高さ:", VerticalAlignment = VerticalAlignment.Center });
+            _tbLabelHeight = new TextBox { Text = "500", Width = 56 };
+            labelRow.Items.Add(_tbLabelHeight);
+            labelRow.Items.Add(new Label { Text = "mm", VerticalAlignment = VerticalAlignment.Center });
+            layout.AddRow(labelRow);
+
+            // 切断高さ（平面図/天井伏図のみ有効）
+            var cutHRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
+            cutHRow.Items.Add(new Label { Text = "切断高さ:", VerticalAlignment = VerticalAlignment.Center });
+            _tbCutHeight = new TextBox { Text = "1000", Width = 56 };
+            cutHRow.Items.Add(_tbCutHeight);
+            cutHRow.Items.Add(new Label { Text = "mm", VerticalAlignment = VerticalAlignment.Center });
+            layout.AddRow(cutHRow);
+
+            // メッシュ無視
             var perfRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
-            _cbViewMesh = new CheckBox { Text = "この図面でメッシュ無視" };
+            _cbViewMesh = new CheckBox { Text = "メッシュ無視" };
             perfRow.Items.Add(_cbViewMesh);
             layout.AddRow(perfRow);
 
+            // 視線奥行き
             var depthRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
             depthRow.Items.Add(new Label { Text = "奥行き:", VerticalAlignment = VerticalAlignment.Center });
             _tbViewDepth = new TextBox { Text = "0", Width = 56 };
             depthRow.Items.Add(_tbViewDepth);
             depthRow.Items.Add(new Label { Text = "mm", VerticalAlignment = VerticalAlignment.Center });
-            depthRow.Items.Add(Btn("適用", "この図面に適用して再生成", OnApplyViewPerf));
+            depthRow.Items.Add(Btn("適用+再生成", "この図面に適用して再生成", OnApplyViewPerf));
             layout.AddRow(depthRow);
 
             layout.Add(null);
@@ -135,17 +169,24 @@ namespace Tanuki.UI
                 var project = TanukiProject.Load(doc);
                 if (idx >= project.Views.Count) return;
                 var view = project.Views[idx];
-                _tbRename.Text = view.Name;
+                _tbRename.Text      = view.Name;
                 _cbViewMesh.Checked = !view.IncludeMeshes;
                 _tbViewDepth.Text   = view.ViewDepth.ToString("F0");
+                _tbLabelHeight.Text = view.LabelTextHeight.ToString("F0");
+                _tbCutHeight.Text   = view.CutHeight.ToString("F0");
+                _tbCutHeight.Enabled = view.Type == ViewType.FloorPlan || view.Type == ViewType.RCP;
+                _rbLineType.Checked = view.LayerMode == LayerMode.LineType;
+                _rbOriginal.Checked = view.LayerMode == LayerMode.OriginalLayer;
 
-                // ビューポートのマーカーを選択
+                // マーカー線 + 生成図面オブジェクトをまとめて選択
+                doc.Objects.UnselectAll();
                 if (view.MarkerObjectId != Guid.Empty)
-                {
-                    doc.Objects.UnselectAll();
                     doc.Objects.Select(view.MarkerObjectId);
-                    doc.Views.Redraw();
-                }
+                if (view.MarkerIndicatorIds != null)
+                    foreach (var id in view.MarkerIndicatorIds)
+                        if (id != Guid.Empty) doc.Objects.Select(id);
+                SelectDrawingLayer(doc, view.GetLayerKey());
+                doc.Views.Redraw();
             });
         }
 
@@ -219,6 +260,64 @@ namespace Tanuki.UI
                 RhinoApp.RunScript("_Zoom _Selected", false);
                 doc.Objects.UnselectAll();
             }
+        }
+
+        private void SelectDrawingLayer(RhinoDoc doc, string layerKey)
+        {
+            string path = $"Tanuki::{layerKey}";
+            int li = doc.Layers.FindByFullPath(path, RhinoMath.UnsetIntIndex);
+            if (li == RhinoMath.UnsetIntIndex) return;
+            Action<int> selectAll = null;
+            selectAll = (idx) =>
+            {
+                var objs = doc.Objects.FindByLayer(doc.Layers[idx]);
+                if (objs != null) foreach (var o in objs) o.Select(true);
+                var ch = doc.Layers[idx].GetChildren();
+                if (ch != null) foreach (var c in ch) selectAll(c.Index);
+            };
+            selectAll(li);
+        }
+
+        private void OnAddMarker()
+        {
+            Application.Instance.Invoke(() =>
+            {
+                int idx = _grid.SelectedRow;
+                var doc = RhinoDoc.ActiveDoc;
+                if (doc == null || idx < 0) return;
+                var project = TanukiProject.Load(doc);
+                if (idx >= project.Views.Count) return;
+                var view = project.Views[idx];
+
+                if (view.Type == ViewType.FloorPlan || view.Type == ViewType.RCP) return;
+
+                // 既存マーカーを削除
+                if (view.MarkerObjectId != Guid.Empty)
+                    doc.Objects.Delete(view.MarkerObjectId, true);
+                Tanuki.Generators.MarkerDrawer.DeleteIndicators(doc, view.MarkerIndicatorIds);
+
+                var markerLine = new Rhino.Geometry.Line(
+                    new Rhino.Geometry.Point3d(view.CutStartX, view.CutStartY, 0),
+                    new Rhino.Geometry.Point3d(view.CutEndX,   view.CutEndY,   0));
+                int layerIdx = Tanuki.Generators.MarkerDrawer.EnsureMarkersLayer(doc);
+                var color = view.Type == ViewType.Elevation
+                    ? System.Drawing.Color.Cyan
+                    : System.Drawing.Color.Magenta;
+
+                var lineAttr = new Rhino.DocObjects.ObjectAttributes
+                {
+                    LayerIndex  = layerIdx,
+                    ColorSource = Rhino.DocObjects.ObjectColorSource.ColorFromObject,
+                    ObjectColor = color,
+                    Name        = $"[Tanuki Marker] {view.Name}"
+                };
+                view.MarkerObjectId     = doc.Objects.AddLine(markerLine, lineAttr);
+                view.MarkerIndicatorIds = Tanuki.Generators.MarkerDrawer.DrawIndicators(
+                    doc, markerLine, view.Name, view.ViewRight, layerIdx, color);
+
+                project.Save(doc);
+                doc.Views.Redraw();
+            });
         }
 
         private void OnDelete()
@@ -300,8 +399,16 @@ namespace Tanuki.UI
                 var view = project.Views[idx];
                 double depth;
                 if (!double.TryParse(_tbViewDepth.Text, out depth) || depth < 0) depth = 0;
-                view.IncludeMeshes = !(_cbViewMesh.Checked ?? false);
-                view.ViewDepth     = depth;
+                double labelH;
+                if (!double.TryParse(_tbLabelHeight.Text, out labelH) || labelH <= 0) labelH = 500;
+                double cutH;
+                if (!double.TryParse(_tbCutHeight.Text, out cutH)) cutH = view.CutHeight;
+                view.IncludeMeshes   = !(_cbViewMesh.Checked ?? false);
+                view.ViewDepth       = depth;
+                view.LabelTextHeight = labelH;
+                view.LayerMode       = _rbLineType.Checked ? LayerMode.LineType : LayerMode.OriginalLayer;
+                if (view.Type == ViewType.FloorPlan || view.Type == ViewType.RCP)
+                    view.CutHeight = cutH;
                 project.Save(doc);
                 RhinoApp.InvokeOnUiThread(new Action(() => ViewGenerator.Generate(doc, view, project)));
             });
