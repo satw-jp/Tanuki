@@ -17,6 +17,7 @@ namespace Tanuki.UI
         private readonly RadioButton  _rbLineType;
         private readonly RadioButton  _rbOriginal;
         private TextBox               _tbRename;
+        private TextBox               _tbLabelHeight;
 
         public TanukiPanel(uint documentSerialNumber)
         {
@@ -94,6 +95,15 @@ namespace Tanuki.UI
                 Items = { _rbLineType, _rbOriginal }
             };
             layout.AddRow(modeRow);
+
+            // ── 図面名文字高さ ────────────────────────────────────────────────
+            var labelRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
+            labelRow.Items.Add(new Label { Text = "図面名高さ:", VerticalAlignment = VerticalAlignment.Center });
+            _tbLabelHeight = new TextBox { Text = "500", Width = 60 };
+            labelRow.Items.Add(_tbLabelHeight);
+            labelRow.Items.Add(new Label { Text = "mm", VerticalAlignment = VerticalAlignment.Center });
+            labelRow.Items.Add(IBtn("適用", "図面タイトル文字高さを変更", OnApplyLabelHeight));
+            layout.AddRow(labelRow);
             layout.Add(null);
 
             Content = layout;
@@ -268,6 +278,16 @@ namespace Tanuki.UI
             if (doc == null) return;
             var project = TanukiProject.Load(doc);
             project.LayerMode = _rbLineType.Checked ? LayerMode.LineType : LayerMode.OriginalLayer;
+            project.Save(doc);
+        }
+
+        private void OnApplyLabelHeight()
+        {
+            var doc = RhinoDoc.ActiveDoc;
+            if (doc == null) return;
+            if (!double.TryParse(_tbLabelHeight.Text, out double h) || h <= 0) return;
+            var project = TanukiProject.Load(doc);
+            project.LabelTextHeight = h;
             project.Save(doc);
         }
     }

@@ -18,8 +18,9 @@ namespace Tanuki.Data
         public List<Level>       Levels       { get; set; } = new List<Level>();
         public List<ViewDef>     Views        { get; set; } = new List<ViewDef>();
         public LayerMode         LayerMode    { get; set; } = LayerMode.LineType;
-        public double            BubbleRadius { get; set; } = 400;
-        public int               ViewScale    { get; set; } = 100;
+        public double            BubbleRadius    { get; set; } = 400;
+        public double            LabelTextHeight { get; set; } = 500;
+        public int               ViewScale       { get; set; } = 100;
         public ViewDisplayMode   DefaultDisplayMode       { get; set; } = ViewDisplayMode.Technical;
         public PresentationStyle DefaultPresentationStyle { get; set; } = PresentationStyle.SolidColor;
 

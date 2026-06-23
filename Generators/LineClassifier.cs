@@ -70,22 +70,38 @@ namespace Tanuki.Generators
             double tol = doc.ModelAbsoluteTolerance;
             var cutPlane = new Plane(new Point3d(0, 0, cutHeight), Vector3d.ZAxis);
 
+            // 天井伏図の見え掛かりは上方向 (+Z) から投影
+            // ミラーは削除: 通り芯と同じ XY 向きを保つ
+            var rcpViewDir = Vector3d.ZAxis;
+
             foreach (var obj in doc.Objects)
             {
                 if (obj.IsHidden || !obj.IsValid) continue;
                 if (IsTanukiLayer(doc, obj.Attributes.LayerIndex)) continue;
 
                 int srcLayer = obj.Attributes.LayerIndex;
+
+                // 断面線（カット高さでの断面）
                 var cuts = GetCutCurves(obj.Geometry, cutPlane, tol);
-
-                if (reflected)
-                {
-                    var mirror = Transform.Mirror(new Plane(Point3d.Origin, Vector3d.XAxis, Vector3d.ZAxis));
-                    foreach (var c in cuts) c.Transform(mirror);
-                }
-
                 foreach (var c in cuts)
                     result.Add(new ClassifiedCurve { Curve = c, LineType = LineType.Cut, SourceLayerIndex = srcLayer });
+
+                // 天井伏図のみ: カット高さより上にあるオブジェクトの見え掛かりを投影
+                if (!reflected) continue;
+
+                var bbox = obj.Geometry.GetBoundingBox(false);
+                bool anyAboveCut = false;
+                if (bbox.IsValid)
+                    foreach (var corner in bbox.GetCorners())
+                        if (corner.Z - cutHeight > -tol) { anyAboveCut = true; break; }
+                if (!anyAboveCut) continue;
+
+                var visible = new System.Collections.Generic.List<Curve>();
+                var hidden  = new System.Collections.Generic.List<Curve>();
+                ClassifyEdges(obj.Geometry, cutPlane, rcpViewDir, visible, hidden);
+
+                foreach (var c in visible)
+                    result.Add(new ClassifiedCurve { Curve = c, LineType = LineType.Visible, SourceLayerIndex = srcLayer });
             }
 
             return result;

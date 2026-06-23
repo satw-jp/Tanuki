@@ -357,7 +357,7 @@ namespace Tanuki.Generators
             var te = new Rhino.Geometry.TextEntity
             {
                 PlainText     = titleText,
-                TextHeight    = 500,
+                TextHeight    = project.LabelTextHeight,
                 Justification = Rhino.Geometry.TextJustification.BottomCenter
             };
             te.Plane = new Plane(new Point3d(titlePt.X, titlePt.Y + 1300, 0), Vector3d.ZAxis);

@@ -51,6 +51,7 @@ namespace Tanuki.Commands
             }
 
             var view = new ViewDef { Name = viewName, LayerKey = viewName, Type = ViewType.FloorPlan, CutHeight = cutHeight };
+            ViewPlacement.Pick(doc, view);
             project.Views.RemoveAll(v => v.Name == viewName);
             project.Views.Add(view);
             project.Save(doc);
@@ -78,6 +79,7 @@ namespace Tanuki.Commands
 
             string name = $"RCP_{(int)gh.Number()}";
             var view = new ViewDef { Name = name, LayerKey = name, Type = ViewType.RCP, CutHeight = gh.Number() };
+            ViewPlacement.Pick(doc, view);
             project.Views.RemoveAll(v => v.Name == name);
             project.Views.Add(view);
             project.Save(doc);
@@ -161,6 +163,7 @@ namespace Tanuki.Commands
             var markerId = AddMarker(doc, markerLine, name, System.Drawing.Color.Magenta, viewRight, out indicatorIds);
             view.MarkerObjectId      = markerId;
             view.MarkerIndicatorIds  = indicatorIds;
+            ViewPlacement.Pick(doc, view);
 
             project.Views.RemoveAll(v => v.Name == name);
             project.Views.Add(view);
@@ -228,6 +231,7 @@ namespace Tanuki.Commands
                 DisplayMode       = project.DefaultDisplayMode,
                 PresentationStyle = project.DefaultPresentationStyle,
             };
+            ViewPlacement.Pick(doc, view);
 
             project.Views.RemoveAll(v => v.Name == name);
             project.Views.Add(view);
@@ -251,6 +255,27 @@ namespace Tanuki.Commands
             if (project.Views.Count == 0) { RhinoApp.WriteLine("図面がありません"); return Result.Nothing; }
             ViewGenerator.GenerateAll(doc, project);
             return Result.Success;
+        }
+    }
+
+    // 図面生成コマンド共通: 配置基準点の対話入力
+    internal static class ViewPlacement
+    {
+        internal static void Pick(RhinoDoc doc, ViewDef view)
+        {
+            var gp = new GetPoint();
+            gp.SetCommandPrompt("配置基準点をクリック (Enter で自動配置)");
+            gp.AcceptNothing(true);
+            gp.Get();
+            if (gp.CommandResult() != Result.Success) return;
+
+            var  pt        = gp.Point();
+            var  bbox      = Generators.DrawingPlacer.GetModelBBox(doc);
+            bool isSection = view.Type == ViewType.Section || view.Type == ViewType.Elevation;
+
+            view.PlacedOffsetX = isSection ? pt.X : (bbox.IsValid ? pt.X - bbox.Min.X : pt.X);
+            view.PlacedOffsetY = isSection ? 0    : (bbox.IsValid ? pt.Y - bbox.Min.Y : pt.Y);
+            view.HasPlacement  = true;
         }
     }
 }
