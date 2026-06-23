@@ -24,17 +24,20 @@ jobs:
       - name: Package
         run: |
           mkdir dist
-          cp bin/Release/net7.0/Tanuki.rhp dist/
+          cp bin/Release/net7.0/Tanuki.rhp  dist/Tanuki_net7.rhp
+          cp bin/Release/net48/Tanuki.rhp   dist/Tanuki_net48.rhp
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Tanuki.rhp
+          files: |
+            dist/Tanuki_net7.rhp
+            dist/Tanuki_net48.rhp
           body: |
             ## インストール方法
-            1. `Tanuki.rhp` をダウンロード
-            2. Rhino 8 のビューポートにドラッグ&ドロップ
-            3. Rhino を再起動
+            - **Windows**: `Tanuki_net48.rhp` をダウンロードして Rhino 8 のビューポートにドラッグ&ドロップ
+            - **Mac**: `Tanuki_net7.rhp` をダウンロードして Rhino 8 のビューポートにドラッグ&ドロップ
+            - Rhino を再起動
 
             ## コマンド一覧
             - `TanukiSetupGrid` — 通り芯の設定
