@@ -258,7 +258,7 @@ namespace Tanuki.Generators
                 var face = brep.Faces[fi];
                 Vector3d n = face.NormalAt(face.Domain(0).Mid, face.Domain(1).Mid);
                 if (face.OrientationIsReversed) n = -n;
-                frontFace[fi] = (n * viewDir) < 0.0;
+                frontFace[fi] = (n * viewDir) <= 0.0;
             }
 
             // Classify each edge by whether any adjacent face is front-facing

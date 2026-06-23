@@ -56,12 +56,11 @@ namespace Tanuki.Commands
             string tmp = Path.Combine(Path.GetTempPath(), "tanuki_reload.txt");
             File.WriteAllText(tmp, path);
 
-            // 保存してから終了
+            // 保存してから、コマンド終了後に終了
             RhinoApp.RunScript("_Save", false);
-            RhinoApp.InvokeOnUiThread(new Action(() =>
-            {
-                RhinoApp.RunScript("! _Exit", false);
-            }));
+            System.Threading.Tasks.Task.Delay(300).ContinueWith(_ =>
+                RhinoApp.InvokeOnUiThread(new Action(() =>
+                    RhinoApp.RunScript("_-Exit", false))));
             return Result.Success;
         }
     }
