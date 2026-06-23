@@ -41,7 +41,7 @@ namespace Tanuki.Commands
             gh.Get();
             if (gh.CommandResult() != Result.Success) return gh.CommandResult();
 
-            project.Levels.Add(new Level { Name = gn.StringResult(), Elevation = gh.Number() });
+            project.Levels.Add(new Level { Name = gn.StringResult().Replace("::", "_"), Elevation = gh.Number() });
             project.Save(doc);
             return Result.Success;
         }

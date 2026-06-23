@@ -133,14 +133,14 @@ namespace Tanuki.Commands
                 var hi = new Point2d(rect.X.Max, rect.Y.Max);
 
                 var detail = pageView.AddDetailView(
-                    viewName,
+                    view.Name,
                     lo, hi,
                     DefinedViewportProjection.Top);
 
                 if (detail == null) continue;
 
-                // 生成済み図面の範囲にカメラをフィット
-                var drawBbox = GetDrawingBbox(doc, viewName);
+                // 生成済み図面の範囲にカメラをフィット（LayerKey でレイヤーを特定）
+                var drawBbox = GetDrawingBbox(doc, view.GetLayerKey());
                 if (drawBbox.IsValid)
                 {
                     detail.Viewport.SetCameraLocation(
@@ -165,10 +165,10 @@ namespace Tanuki.Commands
             pageView.SetPageAsActive();
         }
 
-        private BoundingBox GetDrawingBbox(RhinoDoc doc, string viewName)
+        private BoundingBox GetDrawingBbox(RhinoDoc doc, string layerKey)
         {
             var bbox = BoundingBox.Empty;
-            string layerPath = $"Tanuki::{viewName}";
+            string layerPath = $"Tanuki::{layerKey}";
             int li = doc.Layers.FindByFullPath(layerPath, RhinoMath.UnsetIntIndex);
             if (li == RhinoMath.UnsetIntIndex) return bbox;
             var objs = doc.Objects.FindByLayer(doc.Layers[li]);

@@ -21,8 +21,7 @@ namespace Tanuki.Generators
         public static List<ClassifiedCurve> Classify(
             RhinoDoc doc,
             Plane cutPlane,
-            Vector3d viewDirection,
-            bool includeHidden = false)
+            Vector3d viewDirection)
         {
             var result = new List<ClassifiedCurve>();
             double tol = doc.ModelAbsoluteTolerance;
@@ -40,10 +39,23 @@ namespace Tanuki.Generators
                 foreach (var c in cuts)
                     result.Add(new ClassifiedCurve { Curve = c, LineType = LineType.Cut, SourceLayerIndex = srcLayer });
 
-                // ── 見え掛かり（投影）──
-                var visible = GetProjectedEdges(geo, cutPlane, viewDirection);
+                // ── 見え掛かり・隠れ線（面法線による自己隠蔽判定）──
+                // 切断面より先（視線方向側）にあるオブジェクトのみ投影する
+                var bbox = geo.GetBoundingBox(false);
+                bool anyBeyondCut = false;
+                if (bbox.IsValid)
+                    foreach (var corner in bbox.GetCorners())
+                        if ((corner - cutPlane.Origin) * viewDirection > -tol) { anyBeyondCut = true; break; }
+                if (!anyBeyondCut) continue;
+
+                var visible = new List<Curve>();
+                var hidden  = new List<Curve>();
+                ClassifyEdges(geo, cutPlane, viewDirection, visible, hidden);
+
                 foreach (var c in visible)
                     result.Add(new ClassifiedCurve { Curve = c, LineType = LineType.Visible, SourceLayerIndex = srcLayer });
+                foreach (var c in hidden)
+                    result.Add(new ClassifiedCurve { Curve = c, LineType = LineType.Hidden, SourceLayerIndex = srcLayer });
             }
 
             return result;
@@ -94,29 +106,73 @@ namespace Tanuki.Generators
             return result;
         }
 
-        private static List<Curve> GetProjectedEdges(GeometryBase geo, Plane cutPlane, Vector3d viewDir)
+        private static void ClassifyEdges(
+            GeometryBase geo,
+            Plane cutPlane,
+            Vector3d viewDir,
+            List<Curve> visible,
+            List<Curve> hidden)
         {
-            var result = new List<Curve>();
             var projectPlane = new Plane(cutPlane.Origin, viewDir);
-            var edges = ExtractEdges(geo);
 
-            foreach (var e in edges)
+            if      (geo is Brep brep)    { ClassifyBrepEdges(brep, projectPlane, viewDir, visible, hidden); }
+            else if (geo is Extrusion ex) { var br = ex.ToBrep(); if (br != null) ClassifyBrepEdges(br, projectPlane, viewDir, visible, hidden); }
+            else if (geo is Mesh mesh)
             {
-                var projected = Curve.ProjectToPlane(e, projectPlane);
-                if (projected != null && projected.IsValid)
-                    result.Add(projected);
+                var nakedEdges = mesh.GetNakedEdges();
+                if (nakedEdges != null)
+                    foreach (var pl in nakedEdges)
+                    {
+                        var c = pl.ToNurbsCurve();
+                        if (c != null && c.IsValid) visible.Add(c);
+                    }
             }
-            return result;
+            else if (geo is Curve curve) { visible.Add(curve.DuplicateCurve()); }
         }
 
-        private static List<Curve> ExtractEdges(GeometryBase geo)
+        private static void ClassifyBrepEdges(
+            Brep brep,
+            Plane projectPlane,
+            Vector3d viewDir,
+            List<Curve> visible,
+            List<Curve> hidden)
         {
-            var result = new List<Curve>();
-            if      (geo is Brep b)     { foreach (var e in b.Edges) result.Add(e.DuplicateCurve()); }
-            else if (geo is Extrusion e){ var br = e.ToBrep(); if (br != null) foreach (var ed in br.Edges) result.Add(ed.DuplicateCurve()); }
-            else if (geo is Mesh m)     { var edges = m.GetNakedEdges(); if (edges != null) foreach (var pl in edges) result.Add(pl.ToNurbsCurve()); }
-            else if (geo is Curve c)    { result.Add(c.DuplicateCurve()); }
-            return result;
+            // Determine which faces are front-facing (outward normal opposes viewDir)
+            var frontFace = new bool[brep.Faces.Count];
+            for (int fi = 0; fi < brep.Faces.Count; fi++)
+            {
+                var face = brep.Faces[fi];
+                Vector3d n = face.NormalAt(face.Domain(0).Mid, face.Domain(1).Mid);
+                if (face.OrientationIsReversed) n = -n;
+                frontFace[fi] = (n * viewDir) < 0.0;
+            }
+
+            // Classify each edge by whether any adjacent face is front-facing
+            foreach (var edge in brep.Edges)
+            {
+                var dup = edge.DuplicateCurve();
+                if (dup == null) continue;
+                var projected = Curve.ProjectToPlane(dup, projectPlane);
+                if (projected == null || !projected.IsValid) continue;
+
+                bool anyFront = false;
+                int[] trimIndices = edge.TrimIndices();
+                if (trimIndices != null)
+                {
+                    foreach (int ti in trimIndices)
+                    {
+                        if (ti >= 0 && ti < brep.Trims.Count)
+                        {
+                            int faceIdx = brep.Trims[ti].Face.FaceIndex;
+                            if (faceIdx >= 0 && faceIdx < frontFace.Length && frontFace[faceIdx])
+                            { anyFront = true; break; }
+                        }
+                    }
+                }
+
+                if (anyFront) visible.Add(projected);
+                else          hidden.Add(projected);
+            }
         }
 
         private static bool IsTanukiLayer(RhinoDoc doc, int layerIndex)

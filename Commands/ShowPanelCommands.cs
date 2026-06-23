@@ -39,4 +39,16 @@ namespace Tanuki.Commands
             return Result.Success;
         }
     }
+
+    public class TanukiSectionPanel_Show : Command
+    {
+        public static TanukiSectionPanel_Show Instance { get; private set; }
+        public override string EnglishName => "TanukiSectionPanel";
+        public TanukiSectionPanel_Show() { Instance = this; }
+        protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+        {
+            Rhino.UI.Panels.OpenPanel(TanukiSectionPanel.PanelId);
+            return Result.Success;
+        }
+    }
 }

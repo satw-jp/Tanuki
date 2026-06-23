@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Generic;
 using Rhino.Geometry;
 
 namespace Tanuki.Data
 {
     public enum ViewType { FloorPlan, RCP, Elevation, Section }
+
+    public enum ViewDisplayMode   { Technical, Presentation }
+    public enum PresentationStyle { SolidColor, MaterialColor, Texture }
 
     public class ViewDef
     {
@@ -13,6 +17,9 @@ namespace Tanuki.Data
 
         // マーカーオブジェクトのID（モデル上の線）
         public Guid MarkerObjectId { get; set; } = Guid.Empty;
+
+        // 視線方向インジケーター（ティック・矢印・ラベル）のID群
+        public List<Guid> MarkerIndicatorIds { get; set; } = new List<Guid>();
 
         // 平面図 / 天井伏図
         public string LevelName    { get; set; } = "";
@@ -27,14 +34,26 @@ namespace Tanuki.Data
         // 視線方向（切断線の右手側 = 見る方向）
         public bool   ViewRight    { get; set; } = true;
 
+        // レイヤー名の安定キー（作成時に設定。view.Name を変えてもこちらは不変）
+        // 空の場合は Name.Replace("::", "_") にフォールバック（旧データ互換）
+        public string LayerKey { get; set; } = "";
+
         // 生成済み図面の配置オフセット
-        public double PlacedOffsetX { get; set; }
-        public double PlacedOffsetY { get; set; }
+        public double PlacedOffsetX  { get; set; }
+        public double PlacedOffsetY  { get; set; }
+        public bool   HasPlacement   { get; set; } = false;
+
+        // Presentation Mode
+        public ViewDisplayMode   DisplayMode       { get; set; } = ViewDisplayMode.Technical;
+        public PresentationStyle PresentationStyle { get; set; } = PresentationStyle.SolidColor;
 
         // ---- ヘルパー ----
 
         public Point3d CutStart => new Point3d(CutStartX, CutStartY, 0);
         public Point3d CutEnd   => new Point3d(CutEndX,   CutEndY,   0);
+
+        /// <summary>レイヤーパスに使う安定キー。LayerKeyが空なら Name を代用する。</summary>
+        public string GetLayerKey() => string.IsNullOrEmpty(LayerKey) ? Name.Replace("::", "_") : LayerKey;
 
         /// <summary>切断平面を返す（断面図・立面図用）</summary>
         public Plane GetCutPlane()

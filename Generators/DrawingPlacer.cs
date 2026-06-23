@@ -25,6 +25,10 @@ namespace Tanuki.Generators
             bool replaceExisting = true)
         {
             if (curves.Count == 0) return -1;
+            viewName = LayerSafe(viewName);
+
+            // 重複線除去・可視優先
+            curves = CurveCleanup.Process(curves, doc.ModelAbsoluteTolerance);
 
             if (replaceExisting) DeleteViewLayers(doc, viewName);
 
@@ -71,6 +75,7 @@ namespace Tanuki.Generators
 
         public static void DeleteViewLayers(RhinoDoc doc, string viewName)
         {
+            viewName = LayerSafe(viewName);
             int viewIdx = doc.Layers.FindByFullPath($"Tanuki::{viewName}", RhinoMath.UnsetIntIndex);
             if (viewIdx == RhinoMath.UnsetIntIndex) return;
 
@@ -100,6 +105,37 @@ namespace Tanuki.Generators
             return bbox;
         }
 
+        public static void PlacePresentation(
+            RhinoDoc              doc,
+            List<ProjectedRegion> regions,
+            string                viewName,
+            Transform             flatten,
+            Transform             offset)
+        {
+            if (regions == null || regions.Count == 0) return;
+            viewName = LayerSafe(viewName);
+
+            int rootIdx = GetOrCreateLayer(doc, "Tanuki",    -1,      System.Drawing.Color.DimGray);
+            int viewIdx = GetOrCreateLayer(doc, viewName,    rootIdx, System.Drawing.Color.DimGray);
+            int surfIdx = GetOrCreateLayer(doc, "サーフェス", viewIdx, System.Drawing.Color.LightGray);
+
+            foreach (var region in regions)  // Classify() で back-to-front ソート済み
+            {
+                var brep = region.FlatBrep.DuplicateBrep();
+                brep.Transform(flatten);
+                brep.Transform(offset);
+
+                var attr = new ObjectAttributes
+                {
+                    LayerIndex  = surfIdx,
+                    ColorSource = ObjectColorSource.ColorFromObject,
+                    ObjectColor = region.FillColor,
+                };
+                doc.Objects.AddBrep(brep, attr);
+            }
+            // doc.Views.Redraw() は呼び出し元 Place() が担当
+        }
+
         // ---- private ----
 
         private static int GetOrCreateLayer(RhinoDoc doc, string name, int parentIdx, Color color)
@@ -117,5 +153,8 @@ namespace Tanuki.Generators
         private static Color LineTypeColor(LineType lt) =>
             lt == LineType.Cut     ? Color.Red   :
             lt == LineType.Visible ? Color.Black  : Color.Gray;
+
+        // Rhinoのレイヤー階層セパレータ "::" をユーザー名から除去する
+        private static string LayerSafe(string name) => name.Replace("::", "_");
     }
 }

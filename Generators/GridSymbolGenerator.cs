@@ -12,10 +12,10 @@ namespace Tanuki.Generators
     /// </summary>
     public static class GridSymbolGenerator
     {
-        private const double BubbleRadius = 400;
-        private const double TextHeight   = 360;
+        private const double DefaultBubbleRadius = 400;
+        private const double TextHeightRatio      = 0.9;
 
-        public static List<ClassifiedCurve> GenerateSymbols(List<GridLine> gridLines)
+        public static List<ClassifiedCurve> GenerateSymbols(List<GridLine> gridLines, double bubbleRadius = DefaultBubbleRadius)
         {
             var result = new List<ClassifiedCurve>();
 
@@ -32,7 +32,7 @@ namespace Tanuki.Generators
 
                 foreach (var pt in new[] { line.From, line.To })
                 {
-                    var circle = new Circle(new Plane(pt, Vector3d.ZAxis), BubbleRadius);
+                    var circle = new Circle(new Plane(pt, Vector3d.ZAxis), bubbleRadius);
                     result.Add(new ClassifiedCurve
                     {
                         Curve = circle.ToNurbsCurve(),
@@ -49,7 +49,8 @@ namespace Tanuki.Generators
             RhinoDoc doc,
             List<GridLine> gridLines,
             int layerIdx,
-            Transform offset)
+            Transform offset,
+            double bubbleRadius = DefaultBubbleRadius)
         {
             var attr = new ObjectAttributes { LayerIndex = layerIdx };
 
@@ -64,7 +65,7 @@ namespace Tanuki.Generators
                     var te = new TextEntity
                     {
                         PlainText     = gl.Name,
-                        TextHeight    = TextHeight,
+                        TextHeight    = bubbleRadius * TextHeightRatio,
                         Justification = TextJustification.MiddleCenter
                     };
                     te.Plane = new Plane(textPt, Vector3d.ZAxis);

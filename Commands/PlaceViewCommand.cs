@@ -29,7 +29,7 @@ namespace Tanuki.Commands
             // 図面を選択
             var go = new GetOption();
             go.SetCommandPrompt("配置を変更する図面を選択");
-            foreach (var v in project.Views) go.AddOption(v.Name.Replace("-", "_").Replace(" ", "_"));
+            foreach (var v in project.Views) go.AddOption(v.Name.Replace("::", "_").Replace("-", "_").Replace(" ", "_"));
             go.Get();
             if (go.CommandResult() != Result.Success) return go.CommandResult();
 
@@ -47,8 +47,19 @@ namespace Tanuki.Commands
 
             // モデルBBoxの左下を基準にオフセット計算
             var bbox = DrawingPlacer.GetModelBBox(doc);
-            view.PlacedOffsetX = pt.X - bbox.Min.X;
-            view.PlacedOffsetY = pt.Y - bbox.Min.Y;
+
+            if (view.Type == ViewType.Section || view.Type == ViewType.Elevation)
+            {
+                // 断面/立面はXY平面に展開済み: クリック点のX = 切断始点のX、Y は常に0
+                view.PlacedOffsetX = pt.X;
+                view.PlacedOffsetY = 0;
+            }
+            else
+            {
+                view.PlacedOffsetX = pt.X - bbox.Min.X;
+                view.PlacedOffsetY = pt.Y - bbox.Min.Y;
+            }
+            view.HasPlacement  = true;
             project.Save(doc);
 
             ViewGenerator.Generate(doc, view, project, replaceExisting: true);

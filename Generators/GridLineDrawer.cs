@@ -18,16 +18,16 @@ namespace Tanuki.Generators
         private const string LinePath    = "Tanuki::通り芯::線";
         private const string SymbolPath  = "Tanuki::通り芯::記号";
 
-        private const double BubbleR    = 400;
-        private const double TextHeight = 360;
+        private const double DefaultBubbleR = 400;
+        private const double TextHeightRatio = 0.9; // バブル半径に対するテキスト高さ比率
 
         // ── 全同期（初回・パネルから追加時） ─────────────────────────────
 
-        public static void SyncAll(RhinoDoc doc, List<GridLine> gridLines)
+        public static void SyncAll(RhinoDoc doc, List<GridLine> gridLines, double bubbleRadius = DefaultBubbleR)
         {
             EnsureLayers(doc);
-            SyncLines(doc, gridLines);   // 線を描いてIDを保存
-            SyncSymbols(doc, gridLines); // バブル＋テキスト
+            SyncLines(doc, gridLines);
+            SyncSymbols(doc, gridLines, bubbleRadius);
         }
 
         // ── 線のみ同期（IDを GridLine.LineObjectId に保存） ─────────────
@@ -49,36 +49,46 @@ namespace Tanuki.Generators
 
             foreach (var gl in gridLines)
             {
+                if (gl.PersistentId == System.Guid.Empty) gl.PersistentId = System.Guid.NewGuid();
                 var id = doc.Objects.AddLine(gl.ToLine(), attr);
                 gl.LineObjectId = id;
+
+                // PersistentId を Rhino オブジェクトの UserString として保存
+                // （undo/redo 後に LineObjectId が変わっても再追跡できる）
+                var rhObj = doc.Objects.FindId(id);
+                if (rhObj != null)
+                {
+                    rhObj.Attributes.SetUserString("TanukiPersistentId", gl.PersistentId.ToString("N"));
+                    doc.Objects.ModifyAttributes(rhObj, rhObj.Attributes, true);
+                }
             }
         }
 
         // ── シンボルのみ再生成（線は触らない） ───────────────────────────
 
-        public static void SyncSymbols(RhinoDoc doc, List<GridLine> gridLines)
+        public static void SyncSymbols(RhinoDoc doc, List<GridLine> gridLines, double bubbleRadius = DefaultBubbleR)
         {
             int symIdx = GetLayer(doc, SymbolPath);
 
-            // 既存シンボルを削除
             var existing = doc.Objects.FindByLayer(doc.Layers[symIdx]);
             if (existing != null)
                 foreach (var o in existing) doc.Objects.Delete(o, true);
 
             var attr = new ObjectAttributes { LayerIndex = symIdx };
+            double textH = bubbleRadius * TextHeightRatio;
 
             foreach (var gl in gridLines)
             {
                 var line = gl.ToLine();
                 foreach (var pt in new[] { line.From, line.To })
                 {
-                    var plane  = new Plane(pt, Vector3d.ZAxis);
-                    doc.Objects.AddCircle(new Circle(plane, BubbleR), attr);
+                    var plane = new Plane(pt, Vector3d.ZAxis);
+                    doc.Objects.AddCircle(new Circle(plane, bubbleRadius), attr);
 
                     var te = new TextEntity
                     {
                         PlainText     = gl.Name,
-                        TextHeight    = TextHeight,
+                        TextHeight    = textH,
                         Justification = TextJustification.MiddleCenter
                     };
                     te.Plane = plane;
@@ -98,24 +108,36 @@ namespace Tanuki.Generators
             Curve newCurve,
             List<GridLine> gridLines)
         {
+            // まず LineObjectId で高速検索
+            GridLine match = null;
             foreach (var gl in gridLines)
+                if (gl.LineObjectId == oldId) { match = gl; break; }
+
+            // 見つからない場合は新オブジェクトの UserString (PersistentId) で検索
+            // （undo/redo 後に LineObjectId が変わっていてもリカバリできる）
+            if (match == null)
             {
-                if (gl.LineObjectId != oldId) continue;
-
-                var start = newCurve.PointAtStart;
-                var end   = newCurve.PointAtEnd;
-                var dir   = end - start;
-                dir.Unitize();
-
-                gl.OriginX     = start.X;
-                gl.OriginY     = start.Y;
-                gl.DirectionX  = dir.X;
-                gl.DirectionY  = dir.Y;
-                gl.Length      = start.DistanceTo(end);
-                gl.LineObjectId = newId;
-                return true;
+                var rhObj = doc.Objects.FindId(newId);
+                var pidStr = rhObj?.Attributes.GetUserString("TanukiPersistentId");
+                if (!string.IsNullOrEmpty(pidStr) && System.Guid.TryParse(pidStr, out var pid))
+                    foreach (var gl in gridLines)
+                        if (gl.PersistentId == pid) { match = gl; break; }
             }
-            return false;
+
+            if (match == null) return false;
+
+            var start = newCurve.PointAtStart;
+            var end   = newCurve.PointAtEnd;
+            var dir   = end - start;
+            dir.Unitize();
+
+            match.OriginX     = start.X;
+            match.OriginY     = start.Y;
+            match.DirectionX  = dir.X;
+            match.DirectionY  = dir.Y;
+            match.Length      = start.DistanceTo(end);
+            match.LineObjectId = newId;
+            return true;
         }
 
         // ── レイヤー管理 ─────────────────────────────────────────────────

@@ -11,6 +11,19 @@ namespace Tanuki
         public static TanukiPlugin Instance { get; private set; }
         public override PlugInLoadTime LoadTime => PlugInLoadTime.AtStartup;
 
+        public static event System.EventHandler GridLinesChanged;
+        public static event System.EventHandler ViewsChanged;
+
+        internal static void RaiseGridLinesChanged()
+        {
+            GridLinesChanged?.Invoke(null, System.EventArgs.Empty);
+        }
+
+        internal static void RaiseViewsChanged()
+        {
+            ViewsChanged?.Invoke(null, System.EventArgs.Empty);
+        }
+
         public TanukiPlugin()
         {
             Instance = this;
@@ -19,9 +32,10 @@ namespace Tanuki
 
         private void OnRhinoInitialized(object sender, System.EventArgs e)
         {
-            TryRegister(typeof(TanukiPanel),      "Tanuki");
-            TryRegister(typeof(TanukiGridPanel),  "Tanuki: 通り芯");
-            TryRegister(typeof(TanukiLevelPanel), "Tanuki: レベル");
+            TryRegister(typeof(TanukiPanel),        "Tanuki");
+            TryRegister(typeof(TanukiGridPanel),    "T:Grid");
+            TryRegister(typeof(TanukiLevelPanel),   "T:Level");
+            TryRegister(typeof(TanukiSectionPanel), "T:Views");
             RhinoDoc.ReplaceRhinoObject += OnObjectReplaced;
         }
 
@@ -40,7 +54,13 @@ namespace Tanuki
         // オブジェクトが置き換えられたとき：断面マーカーまたは通り芯を追跡
         private void OnObjectReplaced(object sender, Rhino.DocObjects.RhinoReplaceObjectEventArgs args)
         {
-            var doc     = args.Document;
+            try { OnObjectReplacedCore(args); } catch { }
+        }
+
+        private void OnObjectReplacedCore(Rhino.DocObjects.RhinoReplaceObjectEventArgs args)
+        {
+            var doc = args.Document;
+            if (doc == null) return;
             var project = TanukiProject.Load(doc);
             var oldId   = args.OldRhinoObject.Id;
             var newId   = args.NewRhinoObject.Id;
@@ -53,15 +73,27 @@ namespace Tanuki
 
                 if (args.NewRhinoObject.Geometry is Rhino.Geometry.Curve curve)
                 {
+                    var oldIndicatorIds = new System.Collections.Generic.List<System.Guid>(
+                        view.MarkerIndicatorIds ?? new System.Collections.Generic.List<System.Guid>());
                     view.CutStartX      = curve.PointAtStart.X;
                     view.CutStartY      = curve.PointAtStart.Y;
                     view.CutEndX        = curve.PointAtEnd.X;
                     view.CutEndY        = curve.PointAtEnd.Y;
                     view.MarkerObjectId = newId;
-                    project.Save(doc);
+                    var newLine    = new Rhino.Geometry.Line(curve.PointAtStart, curve.PointAtEnd);
+                    bool viewRight = view.ViewRight;
+                    string vName   = view.Name;
                     var v = view;
+                    var p = project;
                     RhinoApp.InvokeOnUiThread(new System.Action(() =>
-                        ViewGenerator.Generate(doc, v, project)));
+                    {
+                        MarkerDrawer.DeleteIndicators(doc, oldIndicatorIds);
+                        int layerIdx = MarkerDrawer.EnsureMarkersLayer(doc);
+                        v.MarkerIndicatorIds = MarkerDrawer.DrawIndicators(doc, newLine, vName, viewRight, layerIdx, System.Drawing.Color.Magenta);
+                        p.Save(doc);
+                        ViewGenerator.Generate(doc, v, p);
+                        RaiseViewsChanged();
+                    }));
                 }
                 return;
             }
@@ -75,8 +107,17 @@ namespace Tanuki
                 if (updated)
                 {
                     project.Save(doc);
+                    var snapProject = project;
                     RhinoApp.InvokeOnUiThread(new System.Action(() =>
-                        Tanuki.Generators.GridLineDrawer.SyncSymbols(doc, project.GridLines)));
+                    {
+                        Tanuki.Generators.GridLineDrawer.SyncSymbols(doc, snapProject.GridLines, snapProject.BubbleRadius);
+                        foreach (var v in snapProject.Views)
+                        {
+                            if (v.Type == Data.ViewType.FloorPlan || v.Type == Data.ViewType.RCP)
+                                Generators.ViewGenerator.Generate(doc, v, snapProject);
+                        }
+                        RaiseGridLinesChanged();
+                    }));
                 }
             }
         }

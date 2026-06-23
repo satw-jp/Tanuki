@@ -18,6 +18,7 @@ namespace Tanuki.UI
 
         private GridView _grid;
         private TextBox  _tbName;
+        private TextBox  _tbBubble;
         private Label    _lblInfo;
 
         // データモデル
@@ -43,11 +44,14 @@ namespace Tanuki.UI
         {
             var layout = new DynamicLayout { Padding = new Padding(4), Spacing = new Size(0, 3) };
 
+            layout.AddRow(new Label { Text = "⊕ 通り芯" });
+
             // ── ツールバー ────────────────────────────────────────
             var tb = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 2 };
-            tb.Items.Add(Btn("+ 描く",   "2点で新規作成",    OnDraw));
-            tb.Items.Add(Btn("↩ 選択",  "既存の線から登録",  OnPick));
-            tb.Items.Add(Btn("✕",       "選択行を削除",      OnDelete));
+            tb.Items.Add(Btn("+ 描く",   "2点で新規作成",     OnDraw));
+            tb.Items.Add(Btn("↩ 選択",  "既存の線から登録",   OnPick));
+            tb.Items.Add(Btn("⊞ 均等",  "等間隔に一括作成",   OnBatch));
+            tb.Items.Add(Btn("✕",       "選択行を削除",       OnDelete));
             layout.AddRow(tb);
 
             // ── GridView ─────────────────────────────────────────
@@ -91,11 +95,23 @@ namespace Tanuki.UI
             renameRow.Items.Add(Btn("変更", "名前を変更", OnRename));
             layout.AddRow(renameRow);
 
+            layout.AddRow(new Panel { Height = 1, BackgroundColor = Colors.DarkGray });
+
+            // バルーン径
+            var bubbleRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
+            bubbleRow.Items.Add(new Label { Text = "バルーン径:", VerticalAlignment = VerticalAlignment.Center });
+            _tbBubble = new TextBox { Text = "400", Width = 60 };
+            bubbleRow.Items.Add(_tbBubble);
+            bubbleRow.Items.Add(new Label { Text = "mm", VerticalAlignment = VerticalAlignment.Center });
+            bubbleRow.Items.Add(Btn("適用", "バルーン径を変更して再描画", OnApplyBubble));
+            layout.AddRow(bubbleRow);
+
             layout.Add(null);
             Content = layout;
 
             Refresh();
-            RhinoDoc.ActiveDocumentChanged += (s, e) => Refresh();
+            RhinoDoc.ActiveDocumentChanged += (s, e) => { try { Refresh(); } catch { } };
+            TanukiPlugin.GridLinesChanged  += (s, e) => { try { Refresh(); } catch { } };
         }
 
         // ── Actions ──────────────────────────────────────────────
@@ -133,8 +149,8 @@ namespace Tanuki.UI
                     DirectionY = dir.Y,
                     Length     = gp1.Point().DistanceTo(gp2.Point())
                 });
-                project.Save(doc);
                 GridLineDrawer.SyncAll(doc, project.GridLines);
+                project.Save(doc);
                 Refresh();
             }));
         }
@@ -172,8 +188,85 @@ namespace Tanuki.UI
                     DirectionY = dir.Y,
                     Length     = start.DistanceTo(end)
                 });
-                project.Save(doc);
                 GridLineDrawer.SyncAll(doc, project.GridLines);
+                project.Save(doc);
+                Refresh();
+            }));
+        }
+
+        private void OnBatch()
+        {
+            RhinoApp.InvokeOnUiThread(new Action(() =>
+            {
+                var doc = RhinoDoc.ActiveDoc;
+                if (doc == null) return;
+                var project = TanukiProject.Load(doc);
+
+                var gPrefix = new GetString();
+                gPrefix.SetCommandPrompt("名前のプレフィックス (例: X → X1,X2...)");
+                gPrefix.SetDefaultString("A");
+                gPrefix.Get();
+                if (gPrefix.CommandResult() != Rhino.Commands.Result.Success) return;
+                string prefix = gPrefix.StringResult();
+
+                var gCount = new GetInteger();
+                gCount.SetCommandPrompt("本数");
+                gCount.SetDefaultInteger(4);
+                gCount.SetLowerLimit(2, false);
+                gCount.Get();
+                if (gCount.CommandResult() != Rhino.Commands.Result.Success) return;
+                int count = gCount.Number();
+
+                var gp1 = new GetPoint();
+                gp1.SetCommandPrompt("第1本目の始点");
+                gp1.Get();
+                if (gp1.CommandResult() != Rhino.Commands.Result.Success) return;
+                var pt1 = gp1.Point();
+
+                var gp2 = new GetPoint();
+                gp2.SetCommandPrompt("第1本目の終点（線の方向と長さを定義）");
+                gp2.SetBasePoint(pt1, false);
+                gp2.DrawLineFromPoint(pt1, true);
+                gp2.Get();
+                if (gp2.CommandResult() != Rhino.Commands.Result.Success) return;
+                var pt2 = gp2.Point();
+
+                var gp3 = new GetPoint();
+                gp3.SetCommandPrompt("第2本目の始点（間隔と方向を定義）");
+                gp3.Get();
+                if (gp3.CommandResult() != Rhino.Commands.Result.Success) return;
+                var pt3 = gp3.Point();
+
+                var lineVec    = pt2 - pt1;
+                var spacingVec = pt3 - pt1;
+
+                for (int i = 0; i < count; i++)
+                {
+                    var origin = new Rhino.Geometry.Point3d(
+                        pt1.X + i * spacingVec.X,
+                        pt1.Y + i * spacingVec.Y,
+                        0);
+                    var end = new Rhino.Geometry.Point3d(
+                        pt2.X + i * spacingVec.X,
+                        pt2.Y + i * spacingVec.Y,
+                        0);
+
+                    var dir = end - origin;
+                    dir.Unitize();
+
+                    project.GridLines.Add(new GridLine
+                    {
+                        Name       = prefix + (i + 1).ToString(),
+                        OriginX    = origin.X,
+                        OriginY    = origin.Y,
+                        DirectionX = dir.X,
+                        DirectionY = dir.Y,
+                        Length     = origin.DistanceTo(end)
+                    });
+                }
+
+                GridLineDrawer.SyncAll(doc, project.GridLines);
+                project.Save(doc);
                 Refresh();
             }));
         }
@@ -188,8 +281,8 @@ namespace Tanuki.UI
                 var project = TanukiProject.Load(doc);
                 if (idx >= project.GridLines.Count) return;
                 project.GridLines.RemoveAt(idx);
-                project.Save(doc);
                 GridLineDrawer.SyncAll(doc, project.GridLines);
+                project.Save(doc);
                 Refresh();
             });
         }
@@ -204,8 +297,8 @@ namespace Tanuki.UI
                 var project = TanukiProject.Load(doc);
                 if (idx >= project.GridLines.Count) return;
                 project.GridLines[idx].Name = _tbName.Text.Trim();
-                project.Save(doc);
                 GridLineDrawer.SyncAll(doc, project.GridLines);
+                project.Save(doc);
                 Refresh();
             });
         }
@@ -227,12 +320,15 @@ namespace Tanuki.UI
 
         private void Refresh()
         {
+            if (IsDisposed) return;
             Application.Instance.Invoke(() =>
             {
+                if (IsDisposed) return;
                 var doc = RhinoDoc.ActiveDoc;
                 var project = doc != null ? TanukiProject.Load(doc) : null;
                 var rows = new List<GridRow>();
                 if (project != null)
+                {
                     foreach (var g in project.GridLines)
                         rows.Add(new GridRow
                         {
@@ -241,7 +337,24 @@ namespace Tanuki.UI
                             Dir    = $"({g.DirectionX:F2},{g.DirectionY:F2})",
                             Length = $"{g.Length:F0}"
                         });
+                    if (_tbBubble != null)
+                        _tbBubble.Text = project.BubbleRadius.ToString("F0");
+                }
                 _grid.DataStore = rows;
+            });
+        }
+
+        private void OnApplyBubble()
+        {
+            Application.Instance.Invoke(() =>
+            {
+                var doc = RhinoDoc.ActiveDoc;
+                if (doc == null) return;
+                if (!double.TryParse(_tbBubble.Text, out double radius) || radius <= 0) return;
+                var project = TanukiProject.Load(doc);
+                project.BubbleRadius = radius;
+                GridLineDrawer.SyncAll(doc, project.GridLines, radius);
+                project.Save(doc);
             });
         }
 

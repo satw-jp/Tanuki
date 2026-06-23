@@ -22,6 +22,7 @@ namespace Tanuki.Commands
             go.SetCommandPrompt("通り芯の操作を選択");
             go.AddOption("描く");
             go.AddOption("既存線");
+            go.AddOption("均等配置");
             go.AddOption("全削除");
             go.Get();
             if (go.CommandResult() != Result.Success) return go.CommandResult();
@@ -30,10 +31,12 @@ namespace Tanuki.Commands
             {
                 case 1: return AddByDrawing(doc, project);
                 case 2: return AddFromLine(doc, project);
+                case 3: return AddBatch(doc, project);
                 default:
                     project.GridLines.Clear();
-                    project.Save(doc);
                     GridLineDrawer.SyncAll(doc, project.GridLines);
+                    project.Save(doc);
+                    TanukiPlugin.RaiseGridLinesChanged();
                     return Result.Success;
             }
         }
@@ -75,6 +78,54 @@ namespace Tanuki.Commands
             return Result.Success;
         }
 
+        private Result AddBatch(RhinoDoc doc, TanukiProject project)
+        {
+            var gPrefix = new GetString();
+            gPrefix.SetCommandPrompt("名前のプレフィックス (例: X → X1,X2...)");
+            gPrefix.SetDefaultString("A");
+            gPrefix.Get();
+            if (gPrefix.CommandResult() != Result.Success) return gPrefix.CommandResult();
+            string prefix = gPrefix.StringResult();
+
+            var gCount = new GetInteger();
+            gCount.SetCommandPrompt("本数");
+            gCount.SetDefaultInteger(4);
+            gCount.SetLowerLimit(2, false);
+            gCount.Get();
+            if (gCount.CommandResult() != Result.Success) return gCount.CommandResult();
+            int count = gCount.Number();
+
+            var gp1 = new GetPoint();
+            gp1.SetCommandPrompt("第1本目の始点");
+            gp1.Get();
+            if (gp1.CommandResult() != Result.Success) return gp1.CommandResult();
+
+            var gp2 = new GetPoint();
+            gp2.SetCommandPrompt("第1本目の終点");
+            gp2.SetBasePoint(gp1.Point(), false);
+            gp2.DrawLineFromPoint(gp1.Point(), true);
+            gp2.Get();
+            if (gp2.CommandResult() != Result.Success) return gp2.CommandResult();
+
+            var gp3 = new GetPoint();
+            gp3.SetCommandPrompt("第2本目の始点（間隔と方向を定義）");
+            gp3.Get();
+            if (gp3.CommandResult() != Result.Success) return gp3.CommandResult();
+
+            var lineVec    = gp2.Point() - gp1.Point();
+            var spacingVec = gp3.Point() - gp1.Point();
+
+            for (int i = 0; i < count; i++)
+            {
+                var origin = new Point3d(gp1.Point().X + i * spacingVec.X,
+                                         gp1.Point().Y + i * spacingVec.Y, 0);
+                var end    = new Point3d(gp2.Point().X + i * spacingVec.X,
+                                         gp2.Point().Y + i * spacingVec.Y, 0);
+                AddGrid(doc, project, prefix + (i + 1), origin, end);
+            }
+            return Result.Success;
+        }
+
         private void AddGrid(RhinoDoc doc, TanukiProject project, string name, Point3d start, Point3d end)
         {
             var dir = end - start; dir.Unitize();
@@ -83,8 +134,9 @@ namespace Tanuki.Commands
                 Name = name, OriginX = start.X, OriginY = start.Y,
                 DirectionX = dir.X, DirectionY = dir.Y, Length = start.DistanceTo(end)
             });
-            project.Save(doc);
             GridLineDrawer.SyncAll(doc, project.GridLines);
+            project.Save(doc);
+            TanukiPlugin.RaiseGridLinesChanged();
         }
     }
 }

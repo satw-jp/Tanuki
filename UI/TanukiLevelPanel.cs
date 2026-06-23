@@ -4,6 +4,7 @@ using Eto.Forms;
 using Eto.Drawing;
 using Rhino;
 using Tanuki.Data;
+using Tanuki.Generators;
 
 namespace Tanuki.UI
 {
@@ -36,11 +37,14 @@ namespace Tanuki.UI
         {
             var layout = new DynamicLayout { Padding = new Padding(4), Spacing = new Size(0, 3) };
 
+            layout.AddRow(new Label { Text = "⊟ レベル" });
+
             // ── ツールバー ────────────────────────────────────────
             var tb = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 2 };
-            tb.Items.Add(Btn("↑", "上に移動",  OnMoveUp));
-            tb.Items.Add(Btn("↓", "下に移動",  OnMoveDown));
-            tb.Items.Add(Btn("✕", "削除",      OnDelete));
+            tb.Items.Add(Btn("↑",  "上に移動",          OnMoveUp));
+            tb.Items.Add(Btn("↓",  "下に移動",          OnMoveDown));
+            tb.Items.Add(Btn("✕",  "削除",              OnDelete));
+            tb.Items.Add(Btn("🔲", "3Dビューに表示更新", OnSyncViewport));
             layout.AddRow(tb);
 
             // ── GridView ─────────────────────────────────────────
@@ -80,7 +84,7 @@ namespace Tanuki.UI
             Content = layout;
 
             Refresh();
-            RhinoDoc.ActiveDocumentChanged += (s, e) => Refresh();
+            RhinoDoc.ActiveDocumentChanged += (s, e) => { try { Refresh(); } catch { } };
         }
 
         // ── Actions ──────────────────────────────────────────────
@@ -93,7 +97,7 @@ namespace Tanuki.UI
                 if (doc == null || string.IsNullOrWhiteSpace(_tbName.Text)) return;
                 if (!double.TryParse(_tbElev.Text, out double elev)) elev = 0;
                 var project = TanukiProject.Load(doc);
-                project.Levels.Add(new Level { Name = _tbName.Text.Trim(), Elevation = elev });
+                project.Levels.Add(new Level { Name = _tbName.Text.Trim().Replace("::", "_"), Elevation = elev });
                 project.Save(doc);
                 Refresh();
             });
@@ -109,7 +113,7 @@ namespace Tanuki.UI
                 if (!double.TryParse(_tbElev.Text, out double elev)) elev = 0;
                 var project = TanukiProject.Load(doc);
                 if (idx >= project.Levels.Count) return;
-                project.Levels[idx].Name      = _tbName.Text.Trim();
+                project.Levels[idx].Name      = _tbName.Text.Trim().Replace("::", "_");
                 project.Levels[idx].Elevation = elev;
                 project.Save(doc);
                 Refresh();
@@ -166,6 +170,17 @@ namespace Tanuki.UI
             });
         }
 
+        private void OnSyncViewport()
+        {
+            Application.Instance.Invoke(() =>
+            {
+                var doc = RhinoDoc.ActiveDoc;
+                if (doc == null) return;
+                var project = TanukiProject.Load(doc);
+                LevelDrawer.SyncAll(doc, project.Levels);
+            });
+        }
+
         private void OnSelect()
         {
             Application.Instance.Invoke(() =>
@@ -182,8 +197,10 @@ namespace Tanuki.UI
 
         private void Refresh()
         {
+            if (IsDisposed) return;
             Application.Instance.Invoke(() =>
             {
+                if (IsDisposed) return;
                 var doc = RhinoDoc.ActiveDoc;
                 var project = doc != null ? TanukiProject.Load(doc) : null;
                 var rows = new List<LevelRow>();

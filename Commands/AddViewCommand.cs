@@ -50,12 +50,13 @@ namespace Tanuki.Commands
                 viewName  = $"FloorPlan_{(int)cutHeight}";
             }
 
-            var view = new ViewDef { Name = viewName, Type = ViewType.FloorPlan, CutHeight = cutHeight };
+            var view = new ViewDef { Name = viewName, LayerKey = viewName, Type = ViewType.FloorPlan, CutHeight = cutHeight };
             project.Views.RemoveAll(v => v.Name == viewName);
             project.Views.Add(view);
             project.Save(doc);
 
             ViewGenerator.Generate(doc, view, project);
+            TanukiPlugin.RaiseViewsChanged();
             return Result.Success;
         }
     }
@@ -76,11 +77,12 @@ namespace Tanuki.Commands
             if (gh.CommandResult() != Result.Success) return gh.CommandResult();
 
             string name = $"RCP_{(int)gh.Number()}";
-            var view = new ViewDef { Name = name, Type = ViewType.RCP, CutHeight = gh.Number() };
+            var view = new ViewDef { Name = name, LayerKey = name, Type = ViewType.RCP, CutHeight = gh.Number() };
             project.Views.RemoveAll(v => v.Name == name);
             project.Views.Add(view);
             project.Save(doc);
             ViewGenerator.Generate(doc, view, project);
+            TanukiPlugin.RaiseViewsChanged();
             return Result.Success;
         }
     }
@@ -100,7 +102,7 @@ namespace Tanuki.Commands
             gn.SetDefaultString("A-A");
             gn.Get();
             if (gn.CommandResult() != Result.Success) return gn.CommandResult();
-            string name = $"Section_{gn.StringResult()}";
+            string name = $"Section_{gn.StringResult().Replace("::", "_")}";
 
             var gp1 = new GetPoint();
             gp1.SetCommandPrompt("断面線の始点");
@@ -112,41 +114,66 @@ namespace Tanuki.Commands
             gp2.Get();
             if (gp2.CommandResult() != Result.Success) return gp2.CommandResult();
 
-            // 視線方向（右手側か左手側か）
-            var go = new GetOption();
-            go.SetCommandPrompt("見る方向");
-            go.AddOption("右手側");
-            go.AddOption("左手側");
-            go.Get();
-            bool viewRight = go.Option().Index == 1;
+            // ① 3点目クリックで見る方向を決定
+            var midPt    = new Point3d(
+                (gp1.Point().X + gp2.Point().X) * 0.5,
+                (gp1.Point().Y + gp2.Point().Y) * 0.5, 0);
+            var cutDir   = gp2.Point() - gp1.Point(); cutDir.Unitize();
+            double lineLen = gp1.Point().DistanceTo(gp2.Point());
+
+            var gp3 = new GetPoint();
+            gp3.SetCommandPrompt("見る方向側をクリック（切断線のどちら側を見るか）");
+            gp3.DynamicDraw += (sender2, e) =>
+            {
+                var toMouse = e.CurrentPoint - midPt;
+                toMouse.Z = 0;
+                if (toMouse.Length > 1)
+                {
+                    toMouse.Unitize();
+                    var arrowTip = midPt + toMouse * (lineLen * 0.3);
+                    e.Display.DrawLine(midPt, arrowTip, System.Drawing.Color.Magenta, 2);
+                }
+            };
+            gp3.Get();
+            if (gp3.CommandResult() != Result.Success) return gp3.CommandResult();
+
+            var toClick = new Vector3d(gp3.Point().X - midPt.X, gp3.Point().Y - midPt.Y, 0);
+            double cross = cutDir.X * toClick.Y - cutDir.Y * toClick.X;
+            bool viewRight = cross < 0;
 
             var view = new ViewDef
             {
                 Name        = name,
+                LayerKey    = name,
                 Type        = ViewType.Section,
                 CutStartX   = gp1.Point().X,
                 CutStartY   = gp1.Point().Y,
                 CutEndX     = gp2.Point().X,
                 CutEndY     = gp2.Point().Y,
-                ViewRight   = viewRight
+                ViewRight   = viewRight,
+                DisplayMode       = project.DefaultDisplayMode,
+                PresentationStyle = project.DefaultPresentationStyle,
             };
 
             // モデル上にマーカー線を追加
             var markerLine = new Line(gp1.Point(), gp2.Point());
-            var markerId = AddMarker(doc, markerLine, name, System.Drawing.Color.Magenta, viewRight);
-            view.MarkerObjectId = markerId;
+            System.Collections.Generic.List<System.Guid> indicatorIds;
+            var markerId = AddMarker(doc, markerLine, name, System.Drawing.Color.Magenta, viewRight, out indicatorIds);
+            view.MarkerObjectId      = markerId;
+            view.MarkerIndicatorIds  = indicatorIds;
 
             project.Views.RemoveAll(v => v.Name == name);
             project.Views.Add(view);
             project.Save(doc);
 
             ViewGenerator.Generate(doc, view, project);
+            TanukiPlugin.RaiseViewsChanged();
             return Result.Success;
         }
 
-        private Guid AddMarker(RhinoDoc doc, Line line, string name, System.Drawing.Color color, bool viewRight = true)
+        private Guid AddMarker(RhinoDoc doc, Line line, string name, System.Drawing.Color color, bool viewRight, out System.Collections.Generic.List<System.Guid> indicatorIds)
         {
-            int layerIdx = GetOrCreateMarkerLayer(doc);
+            int layerIdx = MarkerDrawer.EnsureMarkersLayer(doc);
             var lineAttr = new Rhino.DocObjects.ObjectAttributes
             {
                 LayerIndex  = layerIdx,
@@ -155,81 +182,8 @@ namespace Tanuki.Commands
                 Name        = $"[Tanuki Marker] {name}"
             };
             var id = doc.Objects.AddLine(line, lineAttr);
-
-            // 視線方向インジケーター（各端に矢印マーク）
-            AddDirectionIndicator(doc, line, name, viewRight, layerIdx, color);
+            indicatorIds = MarkerDrawer.DrawIndicators(doc, line, name, viewRight, layerIdx, color);
             return id;
-        }
-
-        private void AddDirectionIndicator(
-            RhinoDoc doc, Line line, string name,
-            bool viewRight, int layerIdx, System.Drawing.Color color)
-        {
-            var attr = new Rhino.DocObjects.ObjectAttributes
-            {
-                LayerIndex  = layerIdx,
-                ColorSource = Rhino.DocObjects.ObjectColorSource.ColorFromObject,
-                ObjectColor = color
-            };
-
-            // 切断線の方向ベクトルと視線方向ベクトル
-            var cutDir  = line.Direction; cutDir.Unitize();
-            var viewDir = viewRight
-                ? new Vector3d(-cutDir.Y,  cutDir.X, 0)   // 右手側
-                : new Vector3d( cutDir.Y, -cutDir.X, 0);  // 左手側
-
-            double tickLen  = line.Length * 0.08;
-            double arrowLen = tickLen * 0.6;
-
-            // 各端点に L字マーク（端点から視線方向へ）+ 矢印
-            foreach (var pt in new[] { line.From, line.To })
-            {
-                var tipPt = pt + viewDir * tickLen;
-
-                // 垂直ティック
-                doc.Objects.AddLine(new Line(pt, tipPt), attr);
-
-                // 矢印（2本の斜め線）
-                var vLeft  = viewDir;
-                var vRight = viewDir;
-                vLeft.Transform(Transform.Rotation(0.5, Vector3d.ZAxis, Point3d.Origin));
-                vRight.Transform(Transform.Rotation(-0.5, Vector3d.ZAxis, Point3d.Origin));
-                doc.Objects.AddLine(new Line(tipPt, tipPt - vLeft  * arrowLen), attr);
-                doc.Objects.AddLine(new Line(tipPt, tipPt - vRight * arrowLen), attr);
-            }
-
-            // ラベルテキスト（線の中間、視線方向寄り）
-            var midPt = line.PointAt(0.5) + viewDir * (tickLen * 0.6);
-            var te = new Rhino.Geometry.TextEntity
-            {
-                PlainText     = name,
-                TextHeight    = Math.Max(line.Length * 0.04, 200),
-                Justification = Rhino.Geometry.TextJustification.MiddleCenter
-            };
-            te.Plane = new Plane(midPt, Vector3d.ZAxis);
-            doc.Objects.Add(te, attr);
-        }
-
-        private int GetOrCreateMarkerLayer(RhinoDoc doc)
-        {
-            int rootIdx = EnsureRootLayer(doc);
-            string path = "Tanuki::Markers";
-            int idx = doc.Layers.FindByFullPath(path, RhinoMath.UnsetIntIndex);
-            if (idx != RhinoMath.UnsetIntIndex) return idx;
-            var layer = new Rhino.DocObjects.Layer
-            {
-                Name = "Markers",
-                Color = System.Drawing.Color.Magenta,
-                ParentLayerId = doc.Layers[rootIdx].Id
-            };
-            return doc.Layers.Add(layer);
-        }
-
-        private int EnsureRootLayer(RhinoDoc doc)
-        {
-            int idx = doc.Layers.FindByFullPath("Tanuki", RhinoMath.UnsetIntIndex);
-            if (idx != RhinoMath.UnsetIntIndex) return idx;
-            return doc.Layers.Add(new Rhino.DocObjects.Layer { Name = "Tanuki", Color = System.Drawing.Color.DimGray });
         }
     }
 
@@ -248,7 +202,7 @@ namespace Tanuki.Commands
             gn.SetDefaultString("North");
             gn.Get();
             if (gn.CommandResult() != Result.Success) return gn.CommandResult();
-            string name = $"Elevation_{gn.StringResult()}";
+            string name = $"Elevation_{gn.StringResult().Replace("::", "_")}";
 
             // 立面図の位置を平面で指定（2点で方向と視線を決める）
             var gp1 = new GetPoint();
@@ -264,12 +218,15 @@ namespace Tanuki.Commands
             var view = new ViewDef
             {
                 Name      = name,
+                LayerKey  = name,
                 Type      = ViewType.Elevation,
                 CutStartX = gp1.Point().X,
                 CutStartY = gp1.Point().Y,
                 CutEndX   = gp2.Point().X,
                 CutEndY   = gp2.Point().Y,
-                ViewRight = true
+                ViewRight = true,
+                DisplayMode       = project.DefaultDisplayMode,
+                PresentationStyle = project.DefaultPresentationStyle,
             };
 
             project.Views.RemoveAll(v => v.Name == name);
@@ -277,6 +234,7 @@ namespace Tanuki.Commands
             project.Save(doc);
 
             ViewGenerator.Generate(doc, view, project);
+            TanukiPlugin.RaiseViewsChanged();
             return Result.Success;
         }
     }
