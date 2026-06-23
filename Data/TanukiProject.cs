@@ -21,6 +21,9 @@ namespace Tanuki.Data
         public double            BubbleRadius    { get; set; } = 400;
         public double            LabelTextHeight { get; set; } = 500;
         public int               ViewScale       { get; set; } = 100;
+        // 断面/立面パフォーマンス既定（新規ビューが継承。既存プロジェクトは欠損時 true/0 = 従来動作）
+        public bool              DefaultIncludeMeshes { get; set; } = true;
+        public double            DefaultViewDepth     { get; set; } = 0;
         public ViewDisplayMode   DefaultDisplayMode       { get; set; } = ViewDisplayMode.Technical;
         public PresentationStyle DefaultPresentationStyle { get; set; } = PresentationStyle.SolidColor;
 

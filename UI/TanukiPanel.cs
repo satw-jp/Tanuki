@@ -18,6 +18,8 @@ namespace Tanuki.UI
         private readonly RadioButton  _rbOriginal;
         private TextBox               _tbRename;
         private TextBox               _tbLabelHeight;
+        private CheckBox             _cbIgnoreMesh;
+        private TextBox              _tbViewDepth;
 
         public TanukiPanel(uint documentSerialNumber)
         {
@@ -104,6 +106,21 @@ namespace Tanuki.UI
             labelRow.Items.Add(new Label { Text = "mm", VerticalAlignment = VerticalAlignment.Center });
             labelRow.Items.Add(IBtn("適用", "図面タイトル文字高さを変更", OnApplyLabelHeight));
             layout.AddRow(labelRow);
+
+            // ── 断面パフォーマンス既定（メッシュ無視・視線奥行き） ──
+            var perfRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
+            _cbIgnoreMesh = new CheckBox { Text = "断面でメッシュ無視" };
+            perfRow.Items.Add(_cbIgnoreMesh);
+            layout.AddRow(perfRow);
+
+            var depthRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
+            depthRow.Items.Add(new Label { Text = "視線奥行き:", VerticalAlignment = VerticalAlignment.Center });
+            _tbViewDepth = new TextBox { Text = "0", Width = 60 };
+            depthRow.Items.Add(_tbViewDepth);
+            depthRow.Items.Add(new Label { Text = "mm(0=無制限)", VerticalAlignment = VerticalAlignment.Center });
+            depthRow.Items.Add(IBtn("適用", "メッシュ無視/奥行きを全断面に適用して再生成", OnApplyPerf));
+            layout.AddRow(depthRow);
+
             layout.Add(null);
 
             Content = layout;
@@ -289,6 +306,34 @@ namespace Tanuki.UI
             var project = TanukiProject.Load(doc);
             project.LabelTextHeight = h;
             project.Save(doc);
+        }
+
+        // プロジェクト既定のメッシュ無視/視線奥行きを設定し、全既存ビューへ適用して再生成
+        private void OnApplyPerf()
+        {
+            var doc = RhinoDoc.ActiveDoc;
+            if (doc == null) return;
+            double depth;
+            if (!double.TryParse(_tbViewDepth.Text, out depth) || depth < 0) depth = 0;
+            bool ignoreMesh = _cbIgnoreMesh.Checked ?? false;
+
+            var project = TanukiProject.Load(doc);
+            project.DefaultIncludeMeshes = !ignoreMesh;
+            project.DefaultViewDepth     = depth;
+            foreach (var v in project.Views)
+            {
+                v.IncludeMeshes = !ignoreMesh;
+                v.ViewDepth     = depth;
+            }
+            project.Save(doc);
+
+            var snap = project;
+            RhinoApp.InvokeOnUiThread(new Action(() =>
+            {
+                foreach (var v in snap.Views)
+                    ViewGenerator.Generate(doc, v, snap);
+                TanukiPlugin.RaiseViewsChanged();
+            }));
         }
     }
 }

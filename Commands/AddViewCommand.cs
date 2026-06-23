@@ -50,7 +50,8 @@ namespace Tanuki.Commands
                 viewName  = $"FloorPlan_{(int)cutHeight}";
             }
 
-            var view = new ViewDef { Name = viewName, LayerKey = viewName, Type = ViewType.FloorPlan, CutHeight = cutHeight };
+            var view = new ViewDef { Name = viewName, LayerKey = viewName, Type = ViewType.FloorPlan, CutHeight = cutHeight,
+                                     IncludeMeshes = project.DefaultIncludeMeshes, ViewDepth = project.DefaultViewDepth };
             ViewPlacement.Pick(doc, view);
             project.Views.RemoveAll(v => v.Name == viewName);
             project.Views.Add(view);
@@ -78,7 +79,8 @@ namespace Tanuki.Commands
             if (gh.CommandResult() != Result.Success) return gh.CommandResult();
 
             string name = $"RCP_{(int)gh.Number()}";
-            var view = new ViewDef { Name = name, LayerKey = name, Type = ViewType.RCP, CutHeight = gh.Number() };
+            var view = new ViewDef { Name = name, LayerKey = name, Type = ViewType.RCP, CutHeight = gh.Number(),
+                                     IncludeMeshes = project.DefaultIncludeMeshes, ViewDepth = project.DefaultViewDepth };
             ViewPlacement.Pick(doc, view);
             project.Views.RemoveAll(v => v.Name == name);
             project.Views.Add(view);
@@ -155,6 +157,8 @@ namespace Tanuki.Commands
                 ViewRight   = viewRight,
                 DisplayMode       = project.DefaultDisplayMode,
                 PresentationStyle = project.DefaultPresentationStyle,
+                IncludeMeshes     = project.DefaultIncludeMeshes,
+                ViewDepth         = project.DefaultViewDepth,
             };
 
             // モデル上にマーカー線を追加
@@ -230,6 +234,8 @@ namespace Tanuki.Commands
                 ViewRight = true,
                 DisplayMode       = project.DefaultDisplayMode,
                 PresentationStyle = project.DefaultPresentationStyle,
+                IncludeMeshes     = project.DefaultIncludeMeshes,
+                ViewDepth         = project.DefaultViewDepth,
             };
             ViewPlacement.Pick(doc, view);
 

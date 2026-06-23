@@ -16,6 +16,8 @@ namespace Tanuki.UI
         private GridView _grid;
         private TextBox  _tbRename;
         private Label    _lblCount;
+        private CheckBox _cbViewMesh;
+        private TextBox  _tbViewDepth;
         private bool     _suppressViewportSelect = false;
 
         private class ViewRow
@@ -85,6 +87,22 @@ namespace Tanuki.UI
             renameRow.Items.Add(Btn("✎ 変更", "リネーム", OnRename));
             layout.AddRow(renameRow);
 
+            layout.AddRow(new Panel { Height = 1, BackgroundColor = Colors.DarkGray });
+
+            // ── 選択図面のパフォーマンス上書き（メッシュ無視・視線奥行き） ──
+            var perfRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
+            _cbViewMesh = new CheckBox { Text = "この図面でメッシュ無視" };
+            perfRow.Items.Add(_cbViewMesh);
+            layout.AddRow(perfRow);
+
+            var depthRow = new StackLayout { Orientation = Orientation.Horizontal, Spacing = 4 };
+            depthRow.Items.Add(new Label { Text = "奥行き:", VerticalAlignment = VerticalAlignment.Center });
+            _tbViewDepth = new TextBox { Text = "0", Width = 56 };
+            depthRow.Items.Add(_tbViewDepth);
+            depthRow.Items.Add(new Label { Text = "mm", VerticalAlignment = VerticalAlignment.Center });
+            depthRow.Items.Add(Btn("適用", "この図面に適用して再生成", OnApplyViewPerf));
+            layout.AddRow(depthRow);
+
             layout.Add(null);
             Content = layout;
 
@@ -118,6 +136,8 @@ namespace Tanuki.UI
                 if (idx >= project.Views.Count) return;
                 var view = project.Views[idx];
                 _tbRename.Text = view.Name;
+                _cbViewMesh.Checked = !view.IncludeMeshes;
+                _tbViewDepth.Text   = view.ViewDepth.ToString("F0");
 
                 // ビューポートのマーカーを選択
                 if (view.MarkerObjectId != Guid.Empty)
@@ -264,6 +284,26 @@ namespace Tanuki.UI
                     _lblCount.Text = "0 図面";
                 }
                 _grid.DataStore = rows;
+            });
+        }
+
+        // 選択中の図面だけメッシュ無視/奥行きを上書きして再生成
+        private void OnApplyViewPerf()
+        {
+            Application.Instance.Invoke(() =>
+            {
+                int idx = _grid.SelectedRow;
+                var doc = RhinoDoc.ActiveDoc;
+                if (doc == null || idx < 0) return;
+                var project = TanukiProject.Load(doc);
+                if (idx >= project.Views.Count) return;
+                var view = project.Views[idx];
+                double depth;
+                if (!double.TryParse(_tbViewDepth.Text, out depth) || depth < 0) depth = 0;
+                view.IncludeMeshes = !(_cbViewMesh.Checked ?? false);
+                view.ViewDepth     = depth;
+                project.Save(doc);
+                RhinoApp.InvokeOnUiThread(new Action(() => ViewGenerator.Generate(doc, view, project)));
             });
         }
 
