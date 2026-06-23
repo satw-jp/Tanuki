@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RhinoUI major="1" minor="0" localized_name="Tanuki" plug_in="Tanuki" plug_in_id="{00000000-0000-0000-0000-000000000000}">
+  <tool_bar_groups>
+    <tool_bar_group uuid="{F2035051-5219-4FC3-A71C-E60D9FDAC5D9}" name="Tanuki" active_tool_bar="{E74575C7-A2ED-4EF8-9C3D-AAABF32B8F20}">
+      <tool_bar uuid="{E74575C7-A2ED-4EF8-9C3D-AAABF32B8F20}" name="Tanuki" button_width="28" button_height="28">
+
+        <tool_bar_item uuid="{2EF8BD17-AE18-4344-B878-00F9B39E2F2B}">
+          <left_macro uuid="{FC106836-68D9-49C1-A0A9-AB368D834427}">
+            <script>! _TanukiPanel</script>
+            <tooltip>Tanuki パネルを開く</tooltip>
+            <button_text>Panel</button_text>
+          </left_macro>
+        </tool_bar_item>
+
+        <tool_bar_item uuid="{0A902D94-6D50-4957-8471-7504440A2ADC}" button_style="Separator"/>
+
+        <tool_bar_item uuid="{5C8BB3B8-C923-4F48-A224-42C1C28CC028}">
+          <left_macro uuid="{2F7703EC-620C-434F-9CEC-79FBC87FAA77}">
+            <script>! _TanukiSetupGrid</script>
+            <tooltip>通り芯の設定</tooltip>
+            <button_text>通り芯</button_text>
+          </left_macro>
+        </tool_bar_item>
+
+        <tool_bar_item uuid="{771F9B01-3A9A-4107-8287-C8D208F4ED8F}">
+          <left_macro uuid="{23CE86B9-34AC-44D4-95BD-5420DD5FA4A6}">
+            <script>! _TanukiSetupLevel</script>
+            <tooltip>レベルの設定</tooltip>
+            <button_text>レベル</button_text>
+          </left_macro>
+        </tool_bar_item>
+
+        <tool_bar_item uuid="{A403637A-C245-4D19-9822-80E542864A34}" button_style="Separator"/>
+
+        <tool_bar_item uuid="{B36CBCA3-1333-4D65-932A-1863A05E4CD1}">
+          <left_macro uuid="{D7C9DA3E-1D08-471B-8BF4-97674B3FC43B}">
+            <script>! _TanukiFloorPlan</script>
+            <tooltip>平面図を生成</tooltip>
+            <button_text>平面図</button_text>
+          </left_macro>
+        </tool_bar_item>
+
+        <tool_bar_item uuid="{505983C4-D4D7-4CE5-8B44-01D7062A4618}">
+          <left_macro uuid="{FD41C80E-17A9-40A9-BB3A-0699654AB0AF}">
+            <script>! _TanukiRCP</script>
+            <tooltip>天井伏図を生成</tooltip>
+            <button_text>天井伏図</button_text>
+          </left_macro>
+        </tool_bar_item>
+
+        <tool_bar_item uuid="{79EB9752-C99F-4174-A144-BD3ED11224C5}">
+          <left_macro uuid="{723973B6-C3E0-4CEB-9DD7-C33887CF11B6}">
+            <script>! _TanukiSection</script>
+            <tooltip>断面図を生成</tooltip>
+            <button_text>断面図</button_text>
+          </left_macro>
+        </tool_bar_item>
+
+        <tool_bar_item uuid="{5B98EE95-71CE-40CE-85F3-08934A43093E}">
+          <left_macro uuid="{47B52FD6-A7B3-4C0E-9957-513454D01026}">
+            <script>! _TanukiElevation</script>
+            <tooltip>立面図を生成</tooltip>
+            <button_text>立面図</button_text>
+          </left_macro>
+        </tool_bar_item>
+
+        <tool_bar_item uuid="{043253FE-2E36-4CB3-8F33-F511879770C0}" button_style="Separator"/>
+
+        <tool_bar_item uuid="{164F7682-23C3-4800-A54B-879368F8A20B}">
+          <left_macro uuid="{AABBCCDD-1122-3344-5566-778899AABBCC}">
+            <script>! _TanukiUpdateAll</script>
+            <tooltip>全図面を再生成</tooltip>
+            <button_text>全更新</button_text>
+          </left_macro>
+        </tool_bar_item>
+
+      </tool_bar>
+    </tool_bar_group>
+  </tool_bar_groups>
+</RhinoUI>

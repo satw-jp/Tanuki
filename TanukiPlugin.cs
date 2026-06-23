@@ -127,6 +127,48 @@ namespace Tanuki
         {
             RhinoApp.Initialized -= OnRhinoInitialized;
             Rhino.UI.Panels.OpenPanel(TanukiPanel.PanelId);
+            InstallToolbar();
+        }
+
+        private void InstallToolbar()
+        {
+            try
+            {
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                using (var stream = assembly.GetManifestResourceStream("Tanuki.EmbeddedResources.Tanuki.rui"))
+                {
+                    if (stream == null) return;
+
+                    string uiDir = GetRhinoUiDir();
+                    System.IO.Directory.CreateDirectory(uiDir);
+                    string ruiPath = System.IO.Path.Combine(uiDir, "Tanuki.rui");
+
+                    using (var fileStream = System.IO.File.Create(ruiPath))
+                        stream.CopyTo(fileStream);
+
+                    RhinoApp.RunScript($"_-Toolbar _File _Open \"{ruiPath}\"", false);
+                }
+            }
+            catch (System.Exception ex)
+            {
+                RhinoApp.WriteLine($"[Tanuki] ツールバー読み込み失敗: {ex.Message}");
+            }
+        }
+
+        private static string GetRhinoUiDir()
+        {
+            if (Rhino.Runtime.HostUtils.RunningOnWindows)
+            {
+                return System.IO.Path.Combine(
+                    System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData),
+                    "McNeel", "Rhinoceros", "8.0", "UI");
+            }
+            else
+            {
+                return System.IO.Path.Combine(
+                    System.Environment.GetFolderPath(System.Environment.SpecialFolder.Personal),
+                    "Library", "Application Support", "McNeel", "Rhinoceros", "8", "UI");
+            }
         }
     }
 }
