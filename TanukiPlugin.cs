@@ -27,16 +27,6 @@ namespace Tanuki
         public TanukiPlugin()
         {
             Instance = this;
-            RhinoApp.Initialized += OnRhinoInitialized;
-        }
-
-        private void OnRhinoInitialized(object sender, System.EventArgs e)
-        {
-            TryRegister(typeof(TanukiPanel),        "Tanuki");
-            TryRegister(typeof(TanukiGridPanel),    "T:Grid");
-            TryRegister(typeof(TanukiLevelPanel),   "T:Level");
-            TryRegister(typeof(TanukiSectionPanel), "T:Views");
-            RhinoDoc.ReplaceRhinoObject += OnObjectReplaced;
         }
 
         private void TryRegister(System.Type panelType, string name)
@@ -122,6 +112,14 @@ namespace Tanuki
             }
         }
 
-        protected override LoadReturnCode OnLoad(ref string errorMessage) => LoadReturnCode.Success;
+        protected override LoadReturnCode OnLoad(ref string errorMessage)
+        {
+            TryRegister(typeof(TanukiPanel),        "Tanuki");
+            TryRegister(typeof(TanukiGridPanel),    "T:Grid");
+            TryRegister(typeof(TanukiLevelPanel),   "T:Level");
+            TryRegister(typeof(TanukiSectionPanel), "T:Views");
+            RhinoDoc.ReplaceRhinoObject += OnObjectReplaced;
+            return LoadReturnCode.Success;
+        }
     }
 }
