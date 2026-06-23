@@ -152,11 +152,12 @@ namespace Tanuki
         private void OnRhinoInitialized(object sender, System.EventArgs e)
         {
             RhinoApp.Initialized -= OnRhinoInitialized;
+            RhinoApp.WriteLine("[Tanuki] OnRhinoInitialized: パネルをオープン中");
             Rhino.UI.Panels.OpenPanel(TanukiPanel.PanelId);
             Rhino.UI.Panels.OpenPanel(TanukiGridPanel.PanelId);
             Rhino.UI.Panels.OpenPanel(TanukiLevelPanel.PanelId);
             Rhino.UI.Panels.OpenPanel(TanukiSectionPanel.PanelId);
-            // ツールバーは Idle 後（起動シーケンス完了後）に読み込む
+            RhinoApp.WriteLine("[Tanuki] OnRhinoInitialized: Idle イベントを登録");
             RhinoApp.Idle += OnFirstIdle;
         }
 
@@ -165,6 +166,7 @@ namespace Tanuki
             if (_toolbarInstalled) { RhinoApp.Idle -= OnFirstIdle; return; }
             _toolbarInstalled = true;
             RhinoApp.Idle -= OnFirstIdle;
+            RhinoApp.WriteLine("[Tanuki] OnFirstIdle: ツールバーインストール開始");
             InstallToolbar();
         }
 
@@ -172,35 +174,54 @@ namespace Tanuki
         {
             try
             {
+                // ① 埋め込みリソースを確認
                 var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                var names = assembly.GetManifestResourceNames();
+                RhinoApp.WriteLine($"[Tanuki] 埋め込みリソース一覧 ({names.Length} 件):");
+                foreach (var n in names) RhinoApp.WriteLine($"  {n}");
+
                 using (var stream = assembly.GetManifestResourceStream("Tanuki.EmbeddedResources.Tanuki.rui"))
                 {
                     if (stream == null)
                     {
-                        RhinoApp.WriteLine("[Tanuki] ツールバーリソースが見つかりません");
+                        RhinoApp.WriteLine("[Tanuki] ❌ Tanuki.EmbeddedResources.Tanuki.rui が見つかりません");
                         return;
                     }
+                    RhinoApp.WriteLine($"[Tanuki] ✓ リソースを取得 (size={stream.Length} bytes)");
 
-                    string uiDir = GetRhinoUiDir();
-                    System.IO.Directory.CreateDirectory(uiDir);
+                    // ② 書き込み先を確認
+                    string uiDir  = GetRhinoUiDir();
                     string ruiPath = System.IO.Path.Combine(uiDir, "Tanuki.rui");
+                    RhinoApp.WriteLine($"[Tanuki] UIDir: {uiDir}");
+                    RhinoApp.WriteLine($"[Tanuki] ruiPath: {ruiPath}");
 
+                    System.IO.Directory.CreateDirectory(uiDir);
+                    RhinoApp.WriteLine($"[Tanuki] ✓ ディレクトリ確認完了");
+
+                    // ③ ファイルを書き込む
                     using (var fileStream = System.IO.File.Create(ruiPath))
                         stream.CopyTo(fileStream);
+                    long written = new System.IO.FileInfo(ruiPath).Length;
+                    RhinoApp.WriteLine($"[Tanuki] ✓ .rui ファイル書き込み完了 ({written} bytes): {ruiPath}");
 
-                    // Rhino 8 でツールバーファイルを読み込む
-                    bool ok = RhinoApp.RunScript($"_-Toolbar _File _Open \"{ruiPath}\" _Enter", false);
+                    // ④ RunScript でロード
+                    string cmd = $"_-Toolbar _File _Open \"{ruiPath}\" _Enter";
+                    RhinoApp.WriteLine($"[Tanuki] RunScript: {cmd}");
+                    bool ok = RhinoApp.RunScript(cmd, false);
+                    RhinoApp.WriteLine($"[Tanuki] RunScript 結果: {(ok ? "✓ 成功" : "❌ 失敗")}");
+
                     if (!ok)
                     {
                         RhinoApp.WriteLine(
-                            $"[Tanuki] ツールバーを手動で読み込んでください: " +
-                            $"オプション > 外観 > ツールバー > ファイル > 開く > {ruiPath}");
+                            "[Tanuki] 手動手順: オプション > 外観 > ツールバー > ファイル > 開く で " +
+                            ruiPath + " を選択してください");
                     }
                 }
             }
             catch (System.Exception ex)
             {
-                RhinoApp.WriteLine($"[Tanuki] ツールバー読み込み失敗: {ex.Message}");
+                RhinoApp.WriteLine($"[Tanuki] ❌ InstallToolbar 例外: {ex.GetType().Name}: {ex.Message}");
+                RhinoApp.WriteLine($"[Tanuki] StackTrace: {ex.StackTrace}");
             }
         }
 
