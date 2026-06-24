@@ -220,10 +220,16 @@ namespace Tanuki.Generators
             List<Curve> visible,
             List<Curve> hidden)
         {
-            // XAxis=切断線水平方向, YAxis=ZAxis にして projPlane と一致させる
-            var cutH = Vector3d.CrossProduct(Vector3d.ZAxis, viewDir); // viewDir の左方向 = 切断線方向
-            cutH.Unitize();
-            var projectPlane = new Plane(cutPlane.Origin, cutH, Vector3d.ZAxis);
+            // viewDir が垂直（平面図/RCP）の場合は水平プレーンに直接投影
+            var cutH = Vector3d.CrossProduct(Vector3d.ZAxis, viewDir);
+            Plane projectPlane;
+            if (cutH.Length < 0.1)
+                projectPlane = new Plane(cutPlane.Origin, Vector3d.XAxis, Vector3d.YAxis);
+            else
+            {
+                cutH.Unitize();
+                projectPlane = new Plane(cutPlane.Origin, cutH, Vector3d.ZAxis);
+            }
 
             if      (geo is Brep brep)    { ClassifyBrepEdges(brep, projectPlane, viewDir, visible, hidden); }
             else if (geo is Extrusion ex) { var br = ex.ToBrep(); if (br != null) ClassifyBrepEdges(br, projectPlane, viewDir, visible, hidden); }
